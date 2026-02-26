@@ -5,10 +5,11 @@
     "moduleResolution": "node",
     "esModuleInterop": true,
     "strict": true,
+    "jsx": "preserve",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["jest", "node"],
     "outDir": "dist"
   },
-  "include": ["apps/**/*.ts", "shared/**/*.ts", "tests/**/*.ts"]
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "shared/**/*.ts", "tests/**/*.ts"]
 }
