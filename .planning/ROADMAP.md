@@ -44,7 +44,13 @@ Plans:
   3. User can trigger media controls (play/pause, next, previous, volume) and the PC responds correctly.
   4. User sees per-action execution feedback that progresses through received/running/success-failure states.
   5. User can view recent action history on the PC panel with timestamps and final outcomes.
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [x] 02-01-PLAN.md - Build deterministic action orchestrator backbone with lifecycle feedback contracts and bounded runtime history.
+- [ ] 02-02-PLAN.md - Implement validated open-application and open-website executors with deterministic outcomes.
+- [ ] 02-03-PLAN.md - Implement typed media-control executor with explicit platform-aware result codes.
+- [ ] 02-04-PLAN.md - Wire guarded runtime execution, feedback stream delivery, and desktop action history integration tests.
 
 ### Phase 3: Dashboard Builder and Live Preview
 **Goal**: Users can fully configure their mobile control dashboard from the PC panel and trust the resulting phone layout.
@@ -66,5 +72,5 @@ Phases execute in numeric order: 1 -> 1.1 -> 2 -> 2.1 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Trusted Connectivity Foundation | 4/4 | Complete | 2026-02-26 |
-| 2. Deterministic Action Runtime | 0/TBD | Not started | - |
+| 2. Deterministic Action Runtime | 1/4 | In Progress | - |
 | 3. Dashboard Builder and Live Preview | 0/TBD | Not started | - |
