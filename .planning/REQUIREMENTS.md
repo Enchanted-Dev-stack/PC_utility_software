@@ -11,8 +11,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **CNCT-01**: User can discover their PC host on the same Wi-Fi network or connect via manual IP fallback.
 - [x] **CNCT-02**: User can complete one-time pairing between phone and PC using an explicit trust flow (code or QR).
-- [ ] **CNCT-03**: User can reconnect to a previously trusted PC without repeating initial pairing.
-- [ ] **CNCT-04**: User can see live connection status (connected, reconnecting, disconnected) in both phone and PC interfaces.
+- [x] **CNCT-03**: User can reconnect to a previously trusted PC without repeating initial pairing.
+- [x] **CNCT-04**: User can see live connection status (connected, reconnecting, disconnected) in both phone and PC interfaces.
 
 ### Dashboard Builder
 
@@ -32,7 +32,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Safety & Observability
 
 - [ ] **SAFE-01**: User can view recent action history with timestamps and outcome on the PC control panel.
-- [ ] **SAFE-02**: User can remove a trusted phone device from the PC control panel.
+- [x] **SAFE-02**: User can remove a trusted phone device from the PC control panel.
 - [x] **SAFE-03**: System only accepts action requests from paired and authenticated devices.
 
 ## v2 Requirements
@@ -69,8 +69,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | CNCT-01 | Phase 1 | Complete |
 | CNCT-02 | Phase 1 | Complete |
-| CNCT-03 | Phase 1 | Pending |
-| CNCT-04 | Phase 1 | Pending |
+| CNCT-03 | Phase 1 | Complete |
+| CNCT-04 | Phase 1 | Complete |
 | DASH-01 | Phase 3 | Pending |
 | DASH-02 | Phase 3 | Pending |
 | DASH-03 | Phase 3 | Pending |
@@ -81,7 +81,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ACTN-03 | Phase 2 | Pending |
 | ACTN-04 | Phase 2 | Pending |
 | SAFE-01 | Phase 2 | Pending |
-| SAFE-02 | Phase 1 | Pending |
+| SAFE-02 | Phase 1 | Complete |
 | SAFE-03 | Phase 1 | Complete |
 
 **Coverage:**

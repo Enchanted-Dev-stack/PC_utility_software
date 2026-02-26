@@ -5,39 +5,40 @@
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** A user can tap custom tiles on their phone and instantly trigger the right action on their PC through a polished, easy-to-configure interface.
-**Current focus:** Phase 1 - Trusted Connectivity Foundation
+**Current focus:** Phase 2 - Deterministic Action Runtime
 
 ## Current Position
 
-Phase: 1 of 3 (Trusted Connectivity Foundation)
-Plan: 3 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-26 - Completed 01-02 trust pairing and auth gating execution.
+Phase: 2 of 3 (Deterministic Action Runtime)
+Plan: 0 of TBD in current phase
+Status: Ready for planning
+Last activity: 2026-02-26 - Completed 01-03 reconnect UX and trusted-device revocation execution.
 
-Progress: [█████░░░░░] 22%
+Progress: [███████░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
+- Total plans completed: 3
 - Average duration: 4 min
-- Total execution time: 0.1 hours
+- Total execution time: 0.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Trusted Connectivity Foundation | 2 | 7 min | 4 min |
+| 1. Trusted Connectivity Foundation | 3 | 13 min | 4 min |
 | 2. Deterministic Action Runtime | 0 | 0 min | 0 min |
 | 3. Dashboard Builder and Live Preview | 0 | 0 min | 0 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3 min), 01-02 (4 min)
+- Last 5 plans: 01-01 (3 min), 01-02 (4 min), 01-03 (6 min)
 - Trend: Stable
 
 *Updated after each plan completion*
 | Phase 01-trusted-connectivity-foundation P01 | 3 min | 2 tasks | 10 files |
 | Phase 01-trusted-connectivity-foundation P02 | 4 min | 2 tasks | 6 files |
+| Phase 01-trusted-connectivity-foundation P03 | 6 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -55,6 +56,9 @@ Recent decisions affecting current work:
 - [Phase 01-trusted-connectivity-foundation]: Pairing always transitions through pending and only becomes trusted after desktop approval.
 - [Phase 01-trusted-connectivity-foundation]: Trusted devices are keyed by hostId and deviceId so trust is host-scoped and persistent.
 - [Phase 01-trusted-connectivity-foundation]: Action authorization returns explicit untrusted_device and invalid_session outcomes for deterministic UX.
+- [Phase 01-trusted-connectivity-foundation]: Reconnect retries are bounded by a 45-second window with explicit retry exhaustion state instead of indefinite looping.
+- [Phase 01-trusted-connectivity-foundation]: Action tiles remain disabled for reconnecting/disconnected states to prevent stale command dispatch.
+- [Phase 01-trusted-connectivity-foundation]: Device revocation immediately removes trust and invalidates matching active sessions before future action checks.
 
 ### Pending Todos
 
@@ -66,6 +70,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-26 19:50
-Stopped at: Completed 01-trusted-connectivity-foundation-02-PLAN.md
+Last session: 2026-02-26 19:59
+Stopped at: Completed 01-trusted-connectivity-foundation-03-PLAN.md
 Resume file: None
