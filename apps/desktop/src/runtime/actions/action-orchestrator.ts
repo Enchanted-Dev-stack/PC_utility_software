@@ -142,9 +142,9 @@ export class ActionRuntimeOrchestrator {
 
   private async enqueue<T>(scope: string, work: () => Promise<T>): Promise<T> {
     const prior = this.queueByScope.get(scope) ?? Promise.resolve();
-    let release: (() => void) | null = null;
+    let releaseNext: (() => void) | undefined;
     const marker = new Promise<void>((resolve) => {
-      release = resolve;
+      releaseNext = resolve;
     });
 
     this.queueByScope.set(scope, prior.then(() => marker));
@@ -153,8 +153,8 @@ export class ActionRuntimeOrchestrator {
     try {
       return await work();
     } finally {
-      if (release) {
-        release();
+      if (releaseNext) {
+        releaseNext();
       }
 
       const current = this.queueByScope.get(scope);
@@ -257,6 +257,8 @@ export class ActionRuntimeOrchestrator {
   }
 
   private toHistoryEntry(terminal: ActionTerminalFeedback): ActionHistoryEntry {
+    const errorCategory = terminal.stage === "failure" ? terminal.error?.category : undefined;
+
     return {
       actionId: terminal.actionId,
       actionType: terminal.actionType,
@@ -267,7 +269,7 @@ export class ActionRuntimeOrchestrator {
       completedAt: terminal.completedAt,
       outcome: terminal.outcome,
       outcomeCode: terminal.outcomeCode,
-      errorCategory: terminal.error?.category
+      errorCategory
     };
   }
 
