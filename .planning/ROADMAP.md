@@ -26,7 +26,12 @@ This roadmap delivers a local-first remote control MVP by first establishing tru
   3. User can reconnect from a previously paired phone without repeating initial pairing.
   4. User can see live connection status (connected, reconnecting, disconnected) in both phone and PC interfaces.
   5. User can remove a trusted phone from the PC panel, and that phone loses authorization until paired again.
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [x] 01-01-PLAN.md - Build LAN discovery and manual IP fallback connectivity foundation.
+- [ ] 01-02-PLAN.md - Implement explicit trust pairing and authenticated action gating.
+- [ ] 01-03-PLAN.md - Deliver reconnect lifecycle, live status UX, and trusted-device revocation.
 
 ### Phase 2: Deterministic Action Runtime
 **Goal**: Users can trigger curated actions from phone tiles and consistently receive clear execution outcomes.
@@ -59,6 +64,6 @@ Phases execute in numeric order: 1 -> 1.1 -> 2 -> 2.1 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Trusted Connectivity Foundation | 0/TBD | Not started | - |
+| 1. Trusted Connectivity Foundation | 1/3 | In Progress | - |
 | 2. Deterministic Action Runtime | 0/TBD | Not started | - |
 | 3. Dashboard Builder and Live Preview | 0/TBD | Not started | - |

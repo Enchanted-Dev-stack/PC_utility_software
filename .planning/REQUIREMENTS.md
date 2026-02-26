@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Connectivity & Trust
 
-- [ ] **CNCT-01**: User can discover their PC host on the same Wi-Fi network or connect via manual IP fallback.
+- [x] **CNCT-01**: User can discover their PC host on the same Wi-Fi network or connect via manual IP fallback.
 - [ ] **CNCT-02**: User can complete one-time pairing between phone and PC using an explicit trust flow (code or QR).
 - [ ] **CNCT-03**: User can reconnect to a previously trusted PC without repeating initial pairing.
 - [ ] **CNCT-04**: User can see live connection status (connected, reconnecting, disconnected) in both phone and PC interfaces.
@@ -67,7 +67,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CNCT-01 | Phase 1 | Pending |
+| CNCT-01 | Phase 1 | Complete |
 | CNCT-02 | Phase 1 | Pending |
 | CNCT-03 | Phase 1 | Pending |
 | CNCT-04 | Phase 1 | Pending |
