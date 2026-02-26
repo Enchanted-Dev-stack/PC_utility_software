@@ -135,6 +135,59 @@ describe("feedback and history models", () => {
 });
 
 describe("deterministic action runtime", () => {
+  it("executes media controls successfully through default win32 runtime composition", async () => {
+    const runtime = new DesktopConnectivityRuntime({
+      hostId: "host-primary",
+      hostName: "Office-PC",
+      hostDeviceId: "desktop-1",
+      hostIpAddress: "192.168.1.10",
+      actionPlatform: "win32",
+      actionNow: createTimestampGenerator(),
+      mediaWindowsAdapter: {
+        execute: async (command) => {
+          if (command === "play_pause") {
+            return { ok: true };
+          }
+
+          return { ok: false, detailCode: "unexpected_command" };
+        }
+      }
+    });
+    const client = new MobileConnectivityClient(runtime, "phone-media");
+    await pairAndConnect(runtime, client, "phone-media", "session-media");
+
+    const events: ActionFeedbackEvent[] = [];
+    const stop = client.subscribeActionFeedback((event) => {
+      events.push(event);
+    }, "action-media-default");
+
+    const result = await client.submitAction({
+      actionId: "action-media-default",
+      actionType: "media_control",
+      payload: { command: "play_pause" },
+      hostId: "host-primary",
+      sessionId: "session-media",
+      requestedAt: "2026-02-27T00:01:00.000Z"
+    });
+    stop();
+
+    expect(result.accepted).toBe(true);
+    if (!result.accepted) {
+      throw new Error("Expected accepted action");
+    }
+
+    expect(result.terminal?.stage).toBe("success");
+    const terminalEvents = events.filter((event) => event.stage === "success" || event.stage === "failure");
+    expect(terminalEvents).toHaveLength(1);
+
+    const history = runtime.getRecentActionHistory(10);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      actionId: "action-media-default",
+      outcome: "success"
+    });
+  });
+
   it("covers app, website, and media terminal outcomes with one history row per accepted action", async () => {
     const runtime = createRuntime();
     const client = new MobileConnectivityClient(runtime, "phone-1");
