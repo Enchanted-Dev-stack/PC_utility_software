@@ -40,6 +40,7 @@ import {
 } from "../actions/action-orchestrator";
 import { createActionExecutorRegistry } from "../actions/action-registry";
 import type { MediaControlPlatformAdapter } from "../actions/executors/media-control-executor";
+import { createWindowsMediaControlAdapter } from "../actions/executors/windows-media-control-adapter";
 import {
   type ActionFeedbackListener,
   type ActionFeedbackEvents
@@ -150,9 +151,13 @@ export class DesktopConnectivityRuntime {
         return this.validateSession(sessionId, deviceId, hostId);
       }
     });
+    const actionPlatform = config.actionPlatform ?? process.platform;
+    const mediaWindowsAdapter =
+      config.mediaWindowsAdapter ??
+      (actionPlatform === "win32" ? createWindowsMediaControlAdapter() : undefined);
     const builtInExecutors = createActionExecutorRegistry({
-      platform: config.actionPlatform,
-      mediaWindowsAdapter: config.mediaWindowsAdapter
+      platform: actionPlatform,
+      mediaWindowsAdapter
     });
     const executors: ActionExecutorMap = {
       ...builtInExecutors,
