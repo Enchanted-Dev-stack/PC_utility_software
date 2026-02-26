@@ -63,7 +63,13 @@ Plans:
   3. User can reorder tiles, save the layout, and see the new order persist.
   4. User can delete tiles and the layout updates accordingly.
   5. User sees mobile dashboard preview updates in real time while editing on the PC panel.
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [x] 03-01-PLAN.md - Build shared dashboard tile contracts and runtime layout CRUD/reorder/delete foundation.
+- [ ] 03-02-PLAN.md - Implement desktop control-panel dashboard builder models for tile create/edit/delete flows.
+- [ ] 03-03-PLAN.md - Add desktop/mobile live-preview subscription models backed by shared runtime snapshots.
+- [ ] 03-04-PLAN.md - Complete reorder/save + real-time builder-preview integration with end-to-end tests.
 
 ## Progress
 
@@ -74,4 +80,4 @@ Phases execute in numeric order: 1 -> 1.1 -> 2 -> 2.1 -> 3
 |-------|----------------|--------|-----------|
 | 1. Trusted Connectivity Foundation | 4/4 | Complete | 2026-02-26 |
 | 2. Deterministic Action Runtime | 5/5 | Complete | 2026-02-26 |
-| 3. Dashboard Builder and Live Preview | 0/TBD | Not started | - |
+| 3. Dashboard Builder and Live Preview | 1/4 | In Progress | - |

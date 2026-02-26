@@ -16,10 +16,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Dashboard Builder
 
-- [ ] **DASH-01**: User can create a new tile in the PC control panel with label and icon.
-- [ ] **DASH-02**: User can edit an existing tile's label, icon, and mapped action.
-- [ ] **DASH-03**: User can reorder tiles and save layout changes.
-- [ ] **DASH-04**: User can delete tiles from the layout.
+- [x] **DASH-01**: User can create a new tile in the PC control panel with label and icon.
+- [x] **DASH-02**: User can edit an existing tile's label, icon, and mapped action.
+- [x] **DASH-03**: User can reorder tiles and save layout changes.
+- [x] **DASH-04**: User can delete tiles from the layout.
 - [ ] **DASH-05**: User can preview the mobile dashboard layout in real time from the PC control panel.
 
 ### Action Execution
@@ -71,10 +71,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CNCT-02 | Phase 1 | Complete |
 | CNCT-03 | Phase 1 | Complete |
 | CNCT-04 | Phase 1 | Complete |
-| DASH-01 | Phase 3 | Pending |
-| DASH-02 | Phase 3 | Pending |
-| DASH-03 | Phase 3 | Pending |
-| DASH-04 | Phase 3 | Pending |
+| DASH-01 | Phase 3 | Complete |
+| DASH-02 | Phase 3 | Complete |
+| DASH-03 | Phase 3 | Complete |
+| DASH-04 | Phase 3 | Complete |
 | DASH-05 | Phase 3 | Pending |
 | ACTN-01 | Phase 2 | Complete |
 | ACTN-02 | Phase 2 | Complete |
