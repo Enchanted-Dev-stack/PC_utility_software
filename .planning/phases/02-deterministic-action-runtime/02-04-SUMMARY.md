@@ -92,6 +92,7 @@ None - plan executed exactly as written.
 
 ## Issues Encountered
 - Initial history panel ordering was oldest-first due double reversal (`runtime` and panel model); corrected to keep newest terminal rows first before Task 2 commit.
+- `gsd-tools` state/requirements automation could not parse this repository's markdown schema (`advance-plan`, `update-progress`, `record-session`, and `requirements mark-complete`), so STATE/ROADMAP completion fields were updated manually after successful task execution.
 
 ## User Setup Required
 
