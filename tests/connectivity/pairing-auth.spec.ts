@@ -1,4 +1,9 @@
 import { PairingService } from "../../apps/desktop/src/connectivity/pairing/pairing-service";
+import { SessionAuthGuard } from "../../apps/desktop/src/connectivity/session/session-auth-guard";
+import {
+  InMemoryTrustStorePersistence,
+  TrustedDeviceStore
+} from "../../apps/desktop/src/connectivity/trust/trust-store";
 import { PairingFlow } from "../../apps/mobile/src/connectivity/pairing/usePairingFlow";
 
 describe("pairing approval gate", () => {
@@ -81,5 +86,65 @@ describe("pairing approval gate", () => {
 
     expect(deniedState.status).toBe("denied");
     expect(deniedState.failureReason).toBe("denied_by_desktop");
+  });
+});
+
+describe("trust persistence and action authorization", () => {
+  it("persists trusted records across store instances", async () => {
+    const persistence = new InMemoryTrustStorePersistence();
+    const trustStoreA = new TrustedDeviceStore(persistence);
+    await trustStoreA.enrollTrustedDevice({
+      deviceId: "phone-123",
+      hostId: "host-123",
+      pairedAt: "2026-02-27T00:00:00.000Z"
+    });
+
+    const trustStoreB = new TrustedDeviceStore(persistence);
+    const trusted = await trustStoreB.isTrusted("phone-123", "host-123");
+    expect(trusted).toBe(true);
+  });
+
+  it("rejects actions from untrusted or invalid sessions with explicit reasons", async () => {
+    const persistence = new InMemoryTrustStorePersistence();
+    const trustStore = new TrustedDeviceStore(persistence);
+
+    const guard = new SessionAuthGuard(trustStore, {
+      async validateSession(sessionId) {
+        return sessionId === "good-session";
+      }
+    });
+
+    const untrusted = await guard.authorizeAction({
+      sessionId: "good-session",
+      deviceId: "phone-untrusted",
+      hostId: "host-123"
+    });
+    expect(untrusted).toEqual({
+      authorized: false,
+      reason: "untrusted_device"
+    });
+
+    await trustStore.enrollTrustedDevice({
+      deviceId: "phone-trusted",
+      hostId: "host-123",
+      pairedAt: "2026-02-27T00:00:00.000Z"
+    });
+
+    const invalidSession = await guard.authorizeAction({
+      sessionId: "expired-session",
+      deviceId: "phone-trusted",
+      hostId: "host-123"
+    });
+    expect(invalidSession).toEqual({
+      authorized: false,
+      reason: "invalid_session"
+    });
+
+    const allowed = await guard.authorizeAction({
+      sessionId: "good-session",
+      deviceId: "phone-trusted",
+      hostId: "host-123"
+    });
+    expect(allowed).toEqual({ authorized: true });
   });
 });
