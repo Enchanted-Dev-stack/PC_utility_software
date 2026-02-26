@@ -41,6 +41,7 @@ export interface DashboardBuilderTileModel {
 export interface DashboardBuilderRuntimeModel {
   tiles: DashboardBuilderTileModel[];
   editor: DashboardBuilderEditorState;
+  isDirty: boolean;
 }
 
 export interface DashboardBuilderCreateTileInput {
@@ -70,11 +71,16 @@ export interface DashboardBuilderDeleteTileInput {
   tileId: string;
 }
 
+export interface DashboardBuilderMoveTileInput {
+  fromIndex: number;
+  toIndex: number;
+}
+
 export interface DashboardBuilderMutationResult {
   ok: boolean;
   statusLabel: string;
   model: DashboardBuilderRuntimeModel;
-  code?: DashboardValidationCode | "not_found";
+  code?: DashboardValidationCode | "not_found" | "invalid_reorder";
 }
 
 export interface DashboardBuilderRuntimeHandlers {
@@ -82,23 +88,128 @@ export interface DashboardBuilderRuntimeHandlers {
   createTile(input: DashboardBuilderCreateTileInput): Promise<DashboardBuilderMutationResult>;
   updateTile(input: DashboardBuilderUpdateTileInput): Promise<DashboardBuilderMutationResult>;
   deleteTile(input: DashboardBuilderDeleteTileInput): Promise<DashboardBuilderMutationResult>;
+  moveTile(input: DashboardBuilderMoveTileInput): Promise<DashboardBuilderMutationResult>;
+  saveLayout(selectedTileId?: string): Promise<DashboardBuilderMutationResult>;
 }
 
 export async function createDashboardBuilderRuntimeModel(
   runtime: DesktopConnectivityRuntime,
   selectedTileId?: string
 ): Promise<DashboardBuilderRuntimeModel> {
-  return createDashboardBuilderModelFromSnapshot(runtime.getDashboardLayout(), selectedTileId);
+  return createDashboardBuilderModelFromSnapshot(runtime.getDashboardLayout(), selectedTileId, false);
 }
 
 export function createDashboardBuilderRuntimeHandlers(
   runtime: DesktopConnectivityRuntime
 ): DashboardBuilderRuntimeHandlers {
+  let selectedTileId: string | undefined;
+  let persistedSnapshot = runtime.getDashboardLayout();
+  let workingTiles = toBuilderTiles(persistedSnapshot);
+
+  const syncFromRuntime = (nextSelectedTileId?: string): DashboardBuilderRuntimeModel => {
+    persistedSnapshot = runtime.getDashboardLayout();
+    workingTiles = toBuilderTiles(persistedSnapshot);
+    selectedTileId = nextSelectedTileId;
+    return createDashboardBuilderModel(workingTiles, selectedTileId, false);
+  };
+
+  const currentModel = (): DashboardBuilderRuntimeModel => {
+    const isDirty = !hasSameTileOrder(workingTiles, persistedSnapshot);
+    return createDashboardBuilderModel(workingTiles, selectedTileId, isDirty);
+  };
+
+  const moveTile = (input: DashboardBuilderMoveTileInput): DashboardBuilderMutationResult => {
+    if (!isValidMoveIndex(input.fromIndex, workingTiles.length) || !isValidMoveIndex(input.toIndex, workingTiles.length)) {
+      return {
+        ok: false,
+        statusLabel: "Tile reorder is invalid",
+        code: "invalid_reorder",
+        model: currentModel()
+      };
+    }
+
+    const nextTiles = workingTiles.map((tile) => ({ ...tile, action: cloneAction(tile.action) }));
+    const movedTileId = nextTiles[input.fromIndex].id;
+    const movedTile = nextTiles[input.fromIndex];
+    nextTiles.splice(input.fromIndex, 1);
+    nextTiles.splice(input.toIndex, 0, movedTile);
+    workingTiles = nextTiles.map((tile, index) => ({ ...tile, order: index }));
+
+    if (movedTileId) {
+      selectedTileId = movedTileId;
+    }
+
+    return {
+      ok: true,
+      statusLabel: "Tile order updated",
+      model: currentModel()
+    };
+  };
+
+  const saveLayout = (): DashboardBuilderMutationResult => {
+    const dirty = !hasSameTileOrder(workingTiles, persistedSnapshot);
+    if (!dirty) {
+      return {
+        ok: true,
+        statusLabel: "Layout already saved",
+        model: currentModel()
+      };
+    }
+
+    const targetIds = workingTiles.map((tile) => tile.id);
+    const currentTiles = toBuilderTiles(runtime.getDashboardLayout());
+
+    for (let targetIndex = 0; targetIndex < targetIds.length; targetIndex += 1) {
+      const tileId = targetIds[targetIndex];
+      const fromIndex = currentTiles.findIndex((tile) => tile.id === tileId);
+      if (fromIndex < 0) {
+        return {
+          ok: false,
+          statusLabel: "Tile reorder is invalid",
+          code: "invalid_reorder",
+          model: currentModel()
+        };
+      }
+
+      if (fromIndex === targetIndex) {
+        continue;
+      }
+
+      const reordered = runtime.reorderDashboardTiles({
+        fromIndex,
+        toIndex: targetIndex
+      });
+      if (!reordered.ok) {
+        return mapMutationError(reordered, currentModel());
+      }
+
+      const movedTile = currentTiles[fromIndex];
+      currentTiles.splice(fromIndex, 1);
+      currentTiles.splice(targetIndex, 0, movedTile);
+      for (let index = 0; index < currentTiles.length; index += 1) {
+        currentTiles[index] = {
+          ...currentTiles[index],
+          order: index
+        };
+      }
+    }
+
+    return {
+      ok: true,
+      statusLabel: "Layout saved",
+      model: syncFromRuntime(selectedTileId)
+    };
+  };
+
   return {
-    getModel: async (selectedTileId) => createDashboardBuilderRuntimeModel(runtime, selectedTileId),
+    getModel: async (nextSelectedTileId) => {
+      selectedTileId = nextSelectedTileId;
+      return currentModel();
+    },
     createTile: async (input) => {
       const created = runtime.createDashboardTile(toCreatePayload(input));
-      return mapMutationResult(runtime, "create", created, created.ok ? created.result.id : undefined);
+      const nextSelectedTileId = created.ok ? created.result.id : selectedTileId;
+      return mapMutationResult("create", created, syncFromRuntime(nextSelectedTileId));
     },
     updateTile: async (input) => {
       const snapshot = runtime.getDashboardLayout();
@@ -106,36 +217,63 @@ export function createDashboardBuilderRuntimeHandlers(
         input.tileId,
         toUpdatePayload(input, snapshot.tiles.find((tile) => tile.id === input.tileId))
       );
-      return mapMutationResult(runtime, "update", updated, input.tileId);
+      return mapMutationResult("update", updated, syncFromRuntime(input.tileId));
     },
     deleteTile: async (input) => {
       const deleted = runtime.deleteDashboardTile(input.tileId);
-      return mapMutationResult(runtime, "delete", deleted);
-    }
+      return mapMutationResult("delete", deleted, syncFromRuntime());
+    },
+    moveTile: async (input) => moveTile(input),
+    saveLayout: async () => saveLayout()
   };
 }
 
 export function createDashboardBuilderModelFromSnapshot(
   snapshot: DashboardLayoutSnapshot,
-  selectedTileId?: string
+  selectedTileId?: string,
+  isDirty = false
 ): DashboardBuilderRuntimeModel {
-  const tiles = [...snapshot.tiles]
+  const tiles = toBuilderTiles(snapshot);
+
+  return createDashboardBuilderModel(tiles, selectedTileId, isDirty);
+}
+
+function createDashboardBuilderModel(
+  tiles: DashboardBuilderTileModel[],
+  selectedTileId?: string,
+  isDirty = false
+): DashboardBuilderRuntimeModel {
+  const normalizedTiles = [...tiles]
     .sort((left, right) => left.order - right.order)
-    .map((tile) => ({
+    .map((tile, index) => ({
       id: tile.id,
       label: tile.label,
       icon: tile.icon,
-      order: tile.order,
+      order: index,
       action: cloneAction(tile.action)
     }));
 
   const selected =
-    tiles.find((tile) => tile.id === selectedTileId) ?? (selectedTileId ? undefined : tiles[0]);
+    normalizedTiles.find((tile) => tile.id === selectedTileId) ??
+    (selectedTileId ? undefined : normalizedTiles[0]);
 
   return {
-    tiles,
-    editor: toEditorState(selected)
+    tiles: normalizedTiles,
+    editor: toEditorState(selected),
+    isDirty
   };
+}
+
+function toBuilderTiles(snapshot: DashboardLayoutSnapshot): DashboardBuilderTileModel[] {
+  return [...snapshot.tiles]
+    .sort((left, right) => left.order - right.order)
+    .map((tile, index) => ({
+      id: tile.id,
+      label: tile.label,
+      icon: tile.icon,
+      order: index,
+      action: cloneAction(tile.action)
+    }));
 }
 
 function toCreatePayload(input: DashboardBuilderCreateTileInput): unknown {
@@ -301,12 +439,10 @@ function toActionEditorState(action: DashboardTileActionMapping): DashboardBuild
 }
 
 function mapMutationResult<T>(
-  runtime: DesktopConnectivityRuntime,
   kind: MutationKind,
   result: DashboardMutationResult<T>,
-  selectedTileId?: string
+  model: DashboardBuilderRuntimeModel
 ): DashboardBuilderMutationResult {
-  const model = createDashboardBuilderModelFromSnapshot(runtime.getDashboardLayout(), selectedTileId);
   if (result.ok) {
     return {
       ok: true,
@@ -332,6 +468,15 @@ function mapMutationError(
   error: DashboardMutationError,
   model: DashboardBuilderRuntimeModel
 ): DashboardBuilderMutationResult {
+  if (error.reason === "invalid_reorder") {
+    return {
+      ok: false,
+      statusLabel: "Tile reorder is invalid",
+      code: "invalid_reorder",
+      model
+    };
+  }
+
   if (error.reason === "not_found") {
     return {
       ok: false,
@@ -396,4 +541,26 @@ function cloneAction(action: DashboardTileActionMapping): DashboardTileActionMap
       ...(action.payload.value === undefined ? {} : { value: action.payload.value })
     }
   };
+}
+
+function hasSameTileOrder(
+  tiles: DashboardBuilderTileModel[],
+  snapshot: DashboardLayoutSnapshot
+): boolean {
+  const snapshotTiles = toBuilderTiles(snapshot);
+  if (tiles.length !== snapshotTiles.length) {
+    return false;
+  }
+
+  for (let index = 0; index < tiles.length; index += 1) {
+    if (tiles[index].id !== snapshotTiles[index].id) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isValidMoveIndex(index: number, size: number): boolean {
+  return Number.isInteger(index) && index >= 0 && index < size;
 }
