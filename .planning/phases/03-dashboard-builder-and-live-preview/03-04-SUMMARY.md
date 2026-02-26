@@ -69,7 +69,7 @@ Each task was committed atomically:
 2. **Task 2: Tighten live preview integration for builder-driven reorder and edit events** - `e0e5ba9` (feat)
 3. **Task 3: Add end-to-end integration tests for reorder persistence and real-time builder preview sync** - `42e868f` (test)
 
-**Plan metadata:** pending
+**Plan metadata:** `1002a39` (docs)
 
 ## Files Created/Modified
 - `apps/desktop/src/ui/dashboard/DashboardBuilderModel.ts` - Added runtime-backed move/save handlers, tile-order dirty-state baseline logic, and reorder error mapping.
