@@ -16,9 +16,8 @@ describe("action contract coverage", () => {
     expect(ACTION_TYPES).toEqual(["open_app", "open_website", "media_control"]);
     expect(MEDIA_CONTROL_COMMANDS).toEqual([
       "play_pause",
-      "next_track",
-      "previous_track",
-      "volume_set",
+      "next",
+      "previous",
       "volume_up",
       "volume_down",
       "mute_toggle"
@@ -325,9 +324,8 @@ function createCommand(actionId: string, actionType: ActionType, payload: Record
     payload: {
       command:
         payload.command === "play_pause" ||
-        payload.command === "next_track" ||
-        payload.command === "previous_track" ||
-        payload.command === "volume_set" ||
+        payload.command === "next" ||
+        payload.command === "previous" ||
         payload.command === "volume_up" ||
         payload.command === "volume_down" ||
         payload.command === "mute_toggle"

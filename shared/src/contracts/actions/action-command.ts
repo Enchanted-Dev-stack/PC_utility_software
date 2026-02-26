@@ -4,9 +4,8 @@ export type ActionType = (typeof ACTION_TYPES)[number];
 
 export const MEDIA_CONTROL_COMMANDS = [
   "play_pause",
-  "next_track",
-  "previous_track",
-  "volume_set",
+  "next",
+  "previous",
   "volume_up",
   "volume_down",
   "mute_toggle"
