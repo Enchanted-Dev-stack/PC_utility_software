@@ -46,6 +46,14 @@ import {
   type ActionFeedbackEvents
 } from "../actions/action-feedback-events";
 import { type ActionHistoryEntry, type ActionHistoryStore } from "../actions/action-history-store";
+import type {
+  DashboardLayoutSnapshot,
+  DashboardTile
+} from "../../../../../shared/src/contracts/dashboard/dashboard-tile";
+import {
+  DashboardLayoutService,
+  type DashboardMutationResult
+} from "../dashboard/dashboard-layout-service";
 import { SessionAuthGuard } from "../../connectivity/session/session-auth-guard";
 
 export type RuntimeConnectResult =
@@ -96,6 +104,7 @@ export class DesktopConnectivityRuntime {
   private readonly sessionsByScopedDevice: Map<string, string>;
   private readonly statusListeners: Set<RuntimeStatusListener>;
   private readonly actionRuntime: ActionRequestRuntime;
+  private readonly dashboardLayoutService: DashboardLayoutService;
   private lastSuccessfulHost: DiscoveryHostMetadata | null;
   private statusSnapshot: RuntimeConnectionStatusSnapshot;
   private activeSessionScope: { deviceId: string; hostId: string } | null;
@@ -169,6 +178,7 @@ export class DesktopConnectivityRuntime {
       now: config.actionNow ?? now
     });
     this.actionRuntime = new ActionRequestRuntime(actionGuard, orchestrator);
+    this.dashboardLayoutService = new DashboardLayoutService({ now });
   }
 
   public async scanHosts(requesterDeviceId: string): Promise<DiscoveryHostMetadata[]> {
@@ -341,6 +351,37 @@ export class DesktopConnectivityRuntime {
 
   public getRecentActionHistory(limit = 20): ActionHistoryEntry[] {
     return this.actionRuntime.getRecentHistory(limit);
+  }
+
+  public getDashboardLayout(): DashboardLayoutSnapshot {
+    return this.dashboardLayoutService.getSnapshot();
+  }
+
+  public createDashboardTile(input: unknown): DashboardMutationResult<DashboardTile> {
+    return this.dashboardLayoutService.createTile(input);
+  }
+
+  public updateDashboardTile(tileId: string, input: unknown): DashboardMutationResult<DashboardTile> {
+    return this.dashboardLayoutService.updateTile(tileId, input);
+  }
+
+  public reorderDashboardTiles(input: {
+    fromIndex: number;
+    toIndex: number;
+  }): DashboardMutationResult {
+    return this.dashboardLayoutService.reorderTiles(input);
+  }
+
+  public deleteDashboardTile(tileId: string): DashboardMutationResult<{ tileId: string }> {
+    return this.dashboardLayoutService.deleteTile(tileId);
+  }
+
+  public subscribeDashboardLayout(
+    listener: (snapshot: DashboardLayoutSnapshot) => void
+  ): () => void {
+    const unsubscribe = this.dashboardLayoutService.subscribe(listener);
+    listener(this.getDashboardLayout());
+    return unsubscribe;
   }
 
   public setReconnecting(hostId: string, retryAttempt = 0): RuntimeConnectionStatusSnapshot {

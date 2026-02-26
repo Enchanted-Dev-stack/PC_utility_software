@@ -4,6 +4,7 @@ import {
   validateDashboardTileUpdateInput
 } from "../../shared/src/contracts/dashboard/dashboard-tile";
 import { DashboardLayoutService } from "../../apps/desktop/src/runtime/dashboard/dashboard-layout-service";
+import { DesktopConnectivityRuntime } from "../../apps/desktop/src/runtime/connectivity/desktop-connectivity-runtime";
 
 describe("dashboard contract validation", () => {
   it("accepts create payloads for supported action mappings", () => {
@@ -212,6 +213,68 @@ describe("dashboard store service operations", () => {
   });
 });
 
+describe("dashboard runtime wiring", () => {
+  it("exposes dashboard mutations and synchronized snapshot subscriptions from runtime", () => {
+    const runtime = new DesktopConnectivityRuntime({
+      hostId: "host-primary",
+      hostName: "Office-PC",
+      hostDeviceId: "desktop-1",
+      hostIpAddress: "192.168.1.10",
+      now: createTickingNow()
+    });
+
+    const snapshots: DashboardLayoutSnapshot[] = [];
+    const stop = runtime.subscribeDashboardLayout((snapshot) => {
+      snapshots.push(snapshot);
+    });
+
+    const created = runtime.createDashboardTile({
+      label: "Web",
+      icon: "browser",
+      action: {
+        actionType: "open_website",
+        payload: {
+          url: "https://example.com"
+        }
+      }
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) {
+      throw new Error("Expected create success");
+    }
+
+    const updated = runtime.updateDashboardTile(created.result.id, {
+      label: "Docs"
+    });
+    expect(updated.ok).toBe(true);
+
+    const reordered = runtime.reorderDashboardTiles({ fromIndex: 0, toIndex: 0 });
+    expect(reordered.ok).toBe(true);
+
+    const deleted = runtime.deleteDashboardTile(created.result.id);
+    expect(deleted).toMatchObject({
+      ok: true,
+      snapshot: {
+        version: 4,
+        tiles: []
+      },
+      result: {
+        tileId: created.result.id
+      }
+    });
+    if (!deleted.ok) {
+      throw new Error("Expected delete success");
+    }
+
+    const finalSnapshot = runtime.getDashboardLayout();
+    expect(finalSnapshot.version).toBe(4);
+    expect(finalSnapshot.tiles).toEqual([]);
+    expect(finalSnapshot.updatedAt).toBe(deleted.snapshot.updatedAt);
+    expect(snapshots).toHaveLength(5);
+    stop();
+  });
+});
+
 function createService(): DashboardLayoutService {
   let id = 0;
   let tick = 0;
@@ -225,4 +288,12 @@ function createService(): DashboardLayoutService {
       return `2026-02-27T10:00:00.${String(tick).padStart(3, "0")}Z`;
     }
   });
+}
+
+function createTickingNow(): () => string {
+  let tick = 0;
+  return () => {
+    tick += 1;
+    return `2026-02-27T11:00:00.${String(tick).padStart(3, "0")}Z`;
+  };
 }
