@@ -90,7 +90,7 @@ None - plan executed exactly as written.
 
 ## Issues Encountered
 
-None.
+- `gsd-tools` state automation (`state advance-plan`, `state update-progress`, `state record-session`) could not parse this repository's current STATE schema, so current-position/session fields were updated manually after task completion.
 
 ## User Setup Required
 
