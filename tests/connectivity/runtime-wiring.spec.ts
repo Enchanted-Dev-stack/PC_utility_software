@@ -231,3 +231,117 @@ describe("action guard and desktop status wiring", () => {
     unsubscribe();
   });
 });
+
+describe("phase 1 verifier gap closure", () => {
+  it("supports lan scan, manual fallback, pairing approval, and reconnect to last host", async () => {
+    const runtime = new DesktopConnectivityRuntime({
+      hostId: "host-primary",
+      hostName: "Office-PC",
+      hostDeviceId: "desktop-1",
+      hostIpAddress: "192.168.1.10"
+    });
+    const storage = new InMemoryHostDiscoveryStorage();
+    const client = new MobileConnectivityClient(runtime, "phone-verify");
+    const screen = new ConnectionScreenRuntime(client, storage, "phone-verify", {
+      lastSuccessfulHostId: undefined,
+      retryBackoffMs: [1],
+      retryWindowMs: 100,
+      sleep: async () => {
+        return;
+      }
+    });
+
+    const firstOpen = await screen.openConnectionScreen();
+    expect(firstOpen.discovery.hosts.map((host) => host.hostId)).toContain("host-primary");
+
+    const manual = await screen.submitManualIp("192.168.1.10");
+    expect(manual.discovery.status).toBe("ready");
+    expect(manual.discovery.lastSuccessfulHost?.hostId).toBe("host-primary");
+
+    const pairing = await screen.pairingFlowController().startCodePairing();
+    await runtime.approvePairing(pairing.challengeId as string);
+    const approved = await screen.pairingFlowController().refreshStatus();
+    expect(approved.status).toBe("approved");
+
+    const connected = await screen.reconnectFlowController().retryNow();
+    expect(connected.state).toBe("connected");
+    expect(connected.hostId).toBe("host-primary");
+  });
+
+  it("denies actions immediately after revoke for both untrusted and invalid-session paths", async () => {
+    const runtime = new DesktopConnectivityRuntime({
+      hostId: "host-primary",
+      hostName: "Office-PC",
+      hostDeviceId: "desktop-1",
+      hostIpAddress: "192.168.1.10"
+    });
+    const client = new MobileConnectivityClient(runtime, "phone-verify");
+
+    const pairing = await client.requestPairing({
+      requesterDeviceId: "phone-verify",
+      mode: "code",
+      initiatedBy: "phone"
+    });
+    await runtime.approvePairing(pairing.challengeId);
+    await runtime.connectToHost({
+      hostId: "host-primary",
+      requesterDeviceId: "phone-verify",
+      sessionId: "session-live"
+    });
+
+    const guard = new SessionAuthGuard(runtime.getTrustStore(), {
+      async validateSession(sessionId, deviceId, hostId) {
+        return runtime.validateSession(sessionId, deviceId, hostId);
+      }
+    });
+    const actionRuntime = new ActionRequestRuntime(guard, async () => {
+      return;
+    });
+
+    const beforeRevoke = await actionRuntime.handleAction({
+      actionId: "before",
+      actionType: "media_play",
+      sessionId: "session-live",
+      deviceId: "phone-verify",
+      hostId: "host-primary"
+    });
+    expect(beforeRevoke.accepted).toBe(true);
+
+    await runtime.revokeTrustedDevice({
+      deviceId: "phone-verify",
+      hostId: "host-primary"
+    });
+
+    const afterRevokeUntrusted = await actionRuntime.handleAction({
+      actionId: "after-untrusted",
+      actionType: "media_play",
+      sessionId: "session-live",
+      deviceId: "phone-verify",
+      hostId: "host-primary"
+    });
+    expect(afterRevokeUntrusted).toEqual({
+      accepted: false,
+      actionId: "after-untrusted",
+      reason: "untrusted_device"
+    });
+
+    await runtime.getTrustStore().enrollTrustedDevice({
+      deviceId: "phone-verify",
+      hostId: "host-primary",
+      pairedAt: "2026-02-27T02:00:00.000Z"
+    });
+
+    const afterRevokeInvalidSession = await actionRuntime.handleAction({
+      actionId: "after-invalid-session",
+      actionType: "media_play",
+      sessionId: "session-live",
+      deviceId: "phone-verify",
+      hostId: "host-primary"
+    });
+    expect(afterRevokeInvalidSession).toEqual({
+      accepted: false,
+      actionId: "after-invalid-session",
+      reason: "invalid_session"
+    });
+  });
+});
