@@ -49,7 +49,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md - Build deterministic action orchestrator backbone with lifecycle feedback contracts and bounded runtime history.
 - [ ] 02-02-PLAN.md - Implement validated open-application and open-website executors with deterministic outcomes.
-- [ ] 02-03-PLAN.md - Implement typed media-control executor with explicit platform-aware result codes.
+- [x] 02-03-PLAN.md - Implement typed media-control executor with explicit platform-aware result codes.
 - [ ] 02-04-PLAN.md - Wire guarded runtime execution, feedback stream delivery, and desktop action history integration tests.
 
 ### Phase 3: Dashboard Builder and Live Preview
@@ -72,5 +72,5 @@ Phases execute in numeric order: 1 -> 1.1 -> 2 -> 2.1 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Trusted Connectivity Foundation | 4/4 | Complete | 2026-02-26 |
-| 2. Deterministic Action Runtime | 1/4 | In Progress | - |
+| 2. Deterministic Action Runtime | 2/4 | In Progress | - |
 | 3. Dashboard Builder and Live Preview | 0/TBD | Not started | - |
