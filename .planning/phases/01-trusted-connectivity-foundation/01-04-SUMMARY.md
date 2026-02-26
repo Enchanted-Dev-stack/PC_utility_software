@@ -86,7 +86,20 @@ Each task was committed atomically:
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 3 - Blocking] State automation commands could not parse existing STATE.md structure**
+- **Found during:** Post-task state update step
+- **Issue:** `state advance-plan`, `state update-progress`, and `state record-session` returned parse errors due existing STATE.md format mismatch.
+- **Fix:** Applied successful automation where possible (`state record-metric`, `state add-decision`, roadmap update), then manually updated STATE position/session metrics and ROADMAP plan counts to reflect completed 01-04 execution.
+- **Files modified:** `.planning/STATE.md`, `.planning/ROADMAP.md`
+- **Verification:** Confirmed updated values and summary/roadmap consistency by reading both files after edits.
+- **Committed in:** `d783f53` (plan metadata commit)
+
+---
+
+**Total deviations:** 1 auto-fixed (1 blocking)
+**Impact on plan:** Execution outputs are complete and accurate; deviation was tooling-format related and did not alter implementation scope.
 
 ## Authentication Gates
 None.
