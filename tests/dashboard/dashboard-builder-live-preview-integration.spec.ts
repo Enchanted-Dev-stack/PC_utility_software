@@ -117,7 +117,114 @@ describe("live preview updates", () => {
     });
     expect(labelsByUpdate[labelsByUpdate.length - 1]).toEqual(["Playback"]);
   });
+
+  it("keeps builder and preview snapshots contiguous and synchronized through full mutation sequences", async () => {
+    const runtime = createRuntime();
+    const builder = createDashboardBuilderRuntimeHandlers(runtime);
+    const preview = createDashboardLivePreviewRuntimeHandlers(runtime);
+
+    const alpha = await builder.createTile({
+      label: "Alpha",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "notepad"
+    });
+    const beta = await builder.createTile({
+      label: "Beta",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+    const gamma = await builder.createTile({
+      label: "Gamma",
+      icon: "media",
+      actionType: "media_control",
+      command: "play_pause"
+    });
+    expect(alpha.ok).toBe(true);
+    expect(beta.ok).toBe(true);
+    expect(gamma.ok).toBe(true);
+
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["Alpha", "Beta", "Gamma"],
+      isDirty: false
+    });
+
+    const moved = await builder.moveTile({ fromIndex: 2, toIndex: 1 });
+    expect(moved.ok).toBe(true);
+    expect(moved.model.isDirty).toBe(true);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["Alpha", "Gamma", "Beta"],
+      isDirty: true
+    });
+
+    const saved = await builder.saveLayout();
+    expect(saved.ok).toBe(true);
+    expect(saved.model.isDirty).toBe(false);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["Alpha", "Gamma", "Beta"],
+      isDirty: false
+    });
+
+    const betaId = saved.model.tiles[2].id;
+    const updated = await builder.updateTile({
+      tileId: betaId,
+      label: "Beta Updated",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "calculator"
+    });
+    expect(updated.ok).toBe(true);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["Alpha", "Gamma", "Beta Updated"],
+      isDirty: false
+    });
+
+    const alphaId = updated.model.tiles[0].id;
+    const deleted = await builder.deleteTile({ tileId: alphaId });
+    expect(deleted.ok).toBe(true);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["Gamma", "Beta Updated"],
+      isDirty: false
+    });
+
+    const created = await builder.createTile({
+      label: "Delta",
+      icon: "media",
+      actionType: "media_control",
+      command: "next"
+    });
+    expect(created.ok).toBe(true);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["Gamma", "Beta Updated", "Delta"],
+      isDirty: false
+    });
+  });
 });
+
+async function expectBuilderAndPreviewInSync(
+  builder: ReturnType<typeof createDashboardBuilderRuntimeHandlers>,
+  preview: ReturnType<typeof createDashboardLivePreviewRuntimeHandlers>,
+  expected: {
+    labels: string[];
+    isDirty: boolean;
+  }
+): Promise<void> {
+  const builderModel = await builder.getModel();
+  const previewModel = await preview.getModel();
+
+  expect(builderModel.tiles.map((tile) => tile.label)).toEqual(expected.labels);
+  expect(previewModel.tiles.map((tile) => tile.label)).toEqual(expected.labels);
+
+  expect(builderModel.tiles.map((tile) => tile.id)).toEqual(previewModel.tiles.map((tile) => tile.id));
+  expect(builderModel.tiles.map((tile) => tile.order)).toEqual(expectedContiguousOrders(builderModel.tiles.length));
+  expect(previewModel.tiles.map((tile) => tile.order)).toEqual(expectedContiguousOrders(previewModel.tiles.length));
+  expect(builderModel.isDirty).toBe(expected.isDirty);
+}
+
+function expectedContiguousOrders(size: number): number[] {
+  return Array.from({ length: size }, (_, index) => index);
+}
 
 function createRuntime(): DesktopConnectivityRuntime {
   return new DesktopConnectivityRuntime({
