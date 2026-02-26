@@ -1,9 +1,15 @@
 import type { ManualConnectResultPayload } from "../../../../../shared/src/contracts/connectivity/discovery";
+import type { ActionFeedbackEvent } from "../../../../../shared/src/contracts/actions/action-feedback";
 import type {
   PairingRequest,
   PairingStatusEvent
 } from "../../../../desktop/src/connectivity/pairing/pairing-service";
 import type { DesktopConnectivityRuntime } from "../../../../desktop/src/runtime/connectivity/desktop-connectivity-runtime";
+import type {
+  ActionCommandEnvelope,
+  ActionRequestResult
+} from "../../../../desktop/src/runtime/actions/action-request-runtime";
+import type { ActionHistoryEntry } from "../../../../desktop/src/runtime/actions/action-history-store";
 import type { HostDiscoveryClient } from "../../connectivity/discovery/useHostDiscovery";
 import type { PairingClient } from "../../connectivity/pairing/usePairingFlow";
 import type { ReconnectClient } from "../../connectivity/session/useReconnectFlow";
@@ -42,5 +48,31 @@ export class MobileConnectivityClient implements HostDiscoveryClient, PairingCli
       requesterDeviceId: this.requesterDeviceId
     });
     return result.connected;
+  }
+
+  public async submitAction(
+    command: Omit<ActionCommandEnvelope, "deviceId"> & { deviceId?: string }
+  ): Promise<ActionRequestResult> {
+    return this.runtime.handleAction({
+      ...command,
+      deviceId: command.deviceId ?? this.requesterDeviceId
+    });
+  }
+
+  public subscribeActionFeedback(
+    listener: (event: ActionFeedbackEvent) => void,
+    actionId?: string
+  ): () => void {
+    return this.runtime.subscribeActionFeedback((event) => {
+      if (actionId && event.actionId !== actionId) {
+        return;
+      }
+
+      listener(event);
+    });
+  }
+
+  public getRecentActionHistory(limit = 20): ActionHistoryEntry[] {
+    return this.runtime.getRecentActionHistory(limit);
   }
 }
