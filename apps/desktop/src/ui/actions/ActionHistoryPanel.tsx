@@ -34,7 +34,8 @@ export function buildActionHistoryPanelModel(
       outcome: entry.outcome,
       outcomeCode: entry.outcomeCode,
       tone: entry.outcome === "success" ? ("positive" as const) : ("critical" as const)
-    }));
+    }))
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp));
 
   return {
     title: "Recent actions",
