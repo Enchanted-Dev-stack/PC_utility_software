@@ -10,6 +10,7 @@ import type {
   ActionRequestResult
 } from "../../../../desktop/src/runtime/actions/action-request-runtime";
 import type { ActionHistoryEntry } from "../../../../desktop/src/runtime/actions/action-history-store";
+import type { DashboardLayoutSnapshot } from "../../../../../shared/src/contracts/dashboard/dashboard-tile";
 import type { HostDiscoveryClient } from "../../connectivity/discovery/useHostDiscovery";
 import type { PairingClient } from "../../connectivity/pairing/usePairingFlow";
 import type { ReconnectClient } from "../../connectivity/session/useReconnectFlow";
@@ -74,5 +75,15 @@ export class MobileConnectivityClient implements HostDiscoveryClient, PairingCli
 
   public getRecentActionHistory(limit = 20): ActionHistoryEntry[] {
     return this.runtime.getRecentActionHistory(limit);
+  }
+
+  public getDashboardLayout(): DashboardLayoutSnapshot {
+    return this.runtime.getDashboardLayout();
+  }
+
+  public subscribeDashboardLayout(
+    listener: (snapshot: DashboardLayoutSnapshot) => void
+  ): () => void {
+    return this.runtime.subscribeDashboardLayout(listener);
   }
 }

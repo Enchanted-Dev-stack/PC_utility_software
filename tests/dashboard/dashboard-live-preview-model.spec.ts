@@ -3,6 +3,8 @@ import {
   createDashboardLivePreviewModel,
   createDashboardLivePreviewRuntimeHandlers
 } from "../../apps/desktop/src/ui/dashboard/DashboardLivePreviewModel";
+import { createMobileDashboardModel } from "../../apps/mobile/src/ui/dashboard/MobileDashboardModel";
+import { MobileConnectivityClient } from "../../apps/mobile/src/runtime/connectivity/mobile-connectivity-client";
 
 describe("desktop live preview", () => {
   it("reads current runtime snapshot and streams updates", async () => {
@@ -99,6 +101,49 @@ describe("desktop live preview", () => {
 
     expect(model.layoutVersion).toBe(9);
     expect(model.tiles.map((tile) => tile.id)).toEqual(["tile-a", "tile-b"]);
+  });
+});
+
+describe("mobile client subscription", () => {
+  it("proxies runtime dashboard layout reads and subscriptions", () => {
+    const runtime = createRuntime();
+    const client = new MobileConnectivityClient(runtime, "phone-1");
+
+    const updates: number[] = [];
+    const unsubscribe = client.subscribeDashboardLayout((snapshot) => {
+      updates.push(snapshot.version);
+    });
+
+    expect(updates).toEqual([0]);
+    expect(client.getDashboardLayout().version).toBe(0);
+
+    const created = runtime.createDashboardTile({
+      label: "Music",
+      icon: "media",
+      action: {
+        actionType: "media_control",
+        payload: {
+          command: "play_pause"
+        }
+      }
+    });
+    expect(created.ok).toBe(true);
+    expect(updates).toEqual([0, 1]);
+
+    const mobileModel = createMobileDashboardModel(client.getDashboardLayout());
+    expect(mobileModel.layoutVersion).toBe(1);
+    expect(mobileModel.tiles).toHaveLength(1);
+    expect(mobileModel.tiles[0]).toMatchObject({
+      label: "Music",
+      actionSummary: "Media control: play_pause"
+    });
+
+    unsubscribe();
+
+    runtime.updateDashboardTile(created.ok ? created.result.id : "", {
+      label: "Ignored"
+    });
+    expect(updates).toEqual([0, 1]);
   });
 });
 
