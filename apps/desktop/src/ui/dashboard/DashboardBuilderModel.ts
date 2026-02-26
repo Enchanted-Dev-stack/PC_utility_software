@@ -103,23 +103,35 @@ export function createDashboardBuilderRuntimeHandlers(
   runtime: DesktopConnectivityRuntime
 ): DashboardBuilderRuntimeHandlers {
   let selectedTileId: string | undefined;
-  let persistedSnapshot = runtime.getDashboardLayout();
-  let workingTiles = toBuilderTiles(persistedSnapshot);
+  let savedOrderIds = toBuilderTiles(runtime.getDashboardLayout()).map((tile) => tile.id);
 
-  const syncFromRuntime = (nextSelectedTileId?: string): DashboardBuilderRuntimeModel => {
-    persistedSnapshot = runtime.getDashboardLayout();
-    workingTiles = toBuilderTiles(persistedSnapshot);
+  const syncFromRuntime = (
+    nextSelectedTileId?: string,
+    options: {
+      resetDirty?: boolean;
+    } = {}
+  ): DashboardBuilderRuntimeModel => {
+    const snapshot = runtime.getDashboardLayout();
+    if (options.resetDirty) {
+      savedOrderIds = toBuilderTiles(snapshot).map((tile) => tile.id);
+    }
     selectedTileId = nextSelectedTileId;
-    return createDashboardBuilderModel(workingTiles, selectedTileId, false);
+    return createModelFromRuntimeSnapshot(snapshot);
+  };
+
+  const createModelFromRuntimeSnapshot = (snapshot: DashboardLayoutSnapshot): DashboardBuilderRuntimeModel => {
+    const tiles = toBuilderTiles(snapshot);
+    const isDirty = !hasSameTileOrderIds(tiles, savedOrderIds);
+    return createDashboardBuilderModel(tiles, selectedTileId, isDirty);
   };
 
   const currentModel = (): DashboardBuilderRuntimeModel => {
-    const isDirty = !hasSameTileOrder(workingTiles, persistedSnapshot);
-    return createDashboardBuilderModel(workingTiles, selectedTileId, isDirty);
+    return createModelFromRuntimeSnapshot(runtime.getDashboardLayout());
   };
 
   const moveTile = (input: DashboardBuilderMoveTileInput): DashboardBuilderMutationResult => {
-    if (!isValidMoveIndex(input.fromIndex, workingTiles.length) || !isValidMoveIndex(input.toIndex, workingTiles.length)) {
+    const currentTiles = toBuilderTiles(runtime.getDashboardLayout());
+    if (!isValidMoveIndex(input.fromIndex, currentTiles.length) || !isValidMoveIndex(input.toIndex, currentTiles.length)) {
       return {
         ok: false,
         statusLabel: "Tile reorder is invalid",
@@ -128,16 +140,16 @@ export function createDashboardBuilderRuntimeHandlers(
       };
     }
 
-    const nextTiles = workingTiles.map((tile) => ({ ...tile, action: cloneAction(tile.action) }));
-    const movedTileId = nextTiles[input.fromIndex].id;
-    const movedTile = nextTiles[input.fromIndex];
-    nextTiles.splice(input.fromIndex, 1);
-    nextTiles.splice(input.toIndex, 0, movedTile);
-    workingTiles = nextTiles.map((tile, index) => ({ ...tile, order: index }));
-
-    if (movedTileId) {
-      selectedTileId = movedTileId;
+    const movedTileId = currentTiles[input.fromIndex].id;
+    const reordered = runtime.reorderDashboardTiles({
+      fromIndex: input.fromIndex,
+      toIndex: input.toIndex
+    });
+    if (!reordered.ok) {
+      return mapMutationError(reordered, currentModel());
     }
+
+    selectedTileId = movedTileId;
 
     return {
       ok: true,
@@ -147,7 +159,8 @@ export function createDashboardBuilderRuntimeHandlers(
   };
 
   const saveLayout = (): DashboardBuilderMutationResult => {
-    const dirty = !hasSameTileOrder(workingTiles, persistedSnapshot);
+    const snapshot = runtime.getDashboardLayout();
+    const dirty = !hasSameTileOrderIds(toBuilderTiles(snapshot), savedOrderIds);
     if (!dirty) {
       return {
         ok: true,
@@ -156,43 +169,7 @@ export function createDashboardBuilderRuntimeHandlers(
       };
     }
 
-    const targetIds = workingTiles.map((tile) => tile.id);
-    const currentTiles = toBuilderTiles(runtime.getDashboardLayout());
-
-    for (let targetIndex = 0; targetIndex < targetIds.length; targetIndex += 1) {
-      const tileId = targetIds[targetIndex];
-      const fromIndex = currentTiles.findIndex((tile) => tile.id === tileId);
-      if (fromIndex < 0) {
-        return {
-          ok: false,
-          statusLabel: "Tile reorder is invalid",
-          code: "invalid_reorder",
-          model: currentModel()
-        };
-      }
-
-      if (fromIndex === targetIndex) {
-        continue;
-      }
-
-      const reordered = runtime.reorderDashboardTiles({
-        fromIndex,
-        toIndex: targetIndex
-      });
-      if (!reordered.ok) {
-        return mapMutationError(reordered, currentModel());
-      }
-
-      const movedTile = currentTiles[fromIndex];
-      currentTiles.splice(fromIndex, 1);
-      currentTiles.splice(targetIndex, 0, movedTile);
-      for (let index = 0; index < currentTiles.length; index += 1) {
-        currentTiles[index] = {
-          ...currentTiles[index],
-          order: index
-        };
-      }
-    }
+    savedOrderIds = toBuilderTiles(snapshot).map((tile) => tile.id);
 
     return {
       ok: true,
@@ -209,7 +186,7 @@ export function createDashboardBuilderRuntimeHandlers(
     createTile: async (input) => {
       const created = runtime.createDashboardTile(toCreatePayload(input));
       const nextSelectedTileId = created.ok ? created.result.id : selectedTileId;
-      return mapMutationResult("create", created, syncFromRuntime(nextSelectedTileId));
+      return mapMutationResult("create", created, syncFromRuntime(nextSelectedTileId, { resetDirty: true }));
     },
     updateTile: async (input) => {
       const snapshot = runtime.getDashboardLayout();
@@ -217,14 +194,19 @@ export function createDashboardBuilderRuntimeHandlers(
         input.tileId,
         toUpdatePayload(input, snapshot.tiles.find((tile) => tile.id === input.tileId))
       );
-      return mapMutationResult("update", updated, syncFromRuntime(input.tileId));
+      return mapMutationResult("update", updated, syncFromRuntime(input.tileId, { resetDirty: true }));
     },
     deleteTile: async (input) => {
       const deleted = runtime.deleteDashboardTile(input.tileId);
-      return mapMutationResult("delete", deleted, syncFromRuntime());
+      return mapMutationResult("delete", deleted, syncFromRuntime(undefined, { resetDirty: true }));
     },
     moveTile: async (input) => moveTile(input),
-    saveLayout: async () => saveLayout()
+    saveLayout: async (nextSelectedTileId) => {
+      if (nextSelectedTileId !== undefined) {
+        selectedTileId = nextSelectedTileId;
+      }
+      return saveLayout();
+    }
   };
 }
 
@@ -543,17 +525,16 @@ function cloneAction(action: DashboardTileActionMapping): DashboardTileActionMap
   };
 }
 
-function hasSameTileOrder(
+function hasSameTileOrderIds(
   tiles: DashboardBuilderTileModel[],
-  snapshot: DashboardLayoutSnapshot
+  orderIds: readonly string[]
 ): boolean {
-  const snapshotTiles = toBuilderTiles(snapshot);
-  if (tiles.length !== snapshotTiles.length) {
+  if (tiles.length !== orderIds.length) {
     return false;
   }
 
   for (let index = 0; index < tiles.length; index += 1) {
-    if (tiles[index].id !== snapshotTiles[index].id) {
+    if (tiles[index].id !== orderIds[index]) {
       return false;
     }
   }

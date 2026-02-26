@@ -23,18 +23,10 @@ export interface DashboardLivePreviewRuntimeHandlers {
 export function createDashboardLivePreviewModel(
   snapshot: DashboardLayoutSnapshot
 ): DashboardLivePreviewModel {
-  const orderedTiles = [...snapshot.tiles].sort((left, right) => left.order - right.order);
-
   return {
     layoutVersion: snapshot.version,
     updatedAt: snapshot.updatedAt,
-    tiles: orderedTiles.map((tile) => ({
-      id: tile.id,
-      label: tile.label,
-      icon: tile.icon,
-      order: tile.order,
-      actionSummary: summarizeAction(tile.action)
-    }))
+    tiles: toPreviewTiles(snapshot)
   };
 }
 
@@ -69,4 +61,21 @@ function summarizeAction(action: DashboardLayoutSnapshot["tiles"][number]["actio
   return action.payload.value === undefined
     ? `Media control: ${action.payload.command}`
     : `Media control: ${action.payload.command} (${action.payload.value})`;
+}
+
+function toPreviewTiles(snapshot: DashboardLayoutSnapshot): DashboardPreviewTileModel[] {
+  return [...snapshot.tiles]
+    .sort((left, right) => {
+      if (left.order !== right.order) {
+        return left.order - right.order;
+      }
+      return left.id.localeCompare(right.id);
+    })
+    .map((tile, index) => ({
+      id: tile.id,
+      label: tile.label,
+      icon: tile.icon,
+      order: index,
+      actionSummary: summarizeAction(tile.action)
+    }));
 }
