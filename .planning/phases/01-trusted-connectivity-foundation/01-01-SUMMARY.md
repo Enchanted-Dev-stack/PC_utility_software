@@ -63,7 +63,7 @@ Each task was committed atomically:
 1. **Task 1: Create shared discovery contract and desktop discovery service** - `eb3a1ef` (feat)
 2. **Task 2: Implement manual IP fallback and last-successful host persistence hook** - `6d7f102` (feat)
 
-**Plan metadata:** Recorded in the final docs commit for this plan.
+**Plan metadata:** `211e389` (docs)
 
 ## Files Created/Modified
 - `package.json` - Adds Node test script and test dependencies.
