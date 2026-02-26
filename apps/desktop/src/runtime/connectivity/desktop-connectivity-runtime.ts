@@ -29,6 +29,23 @@ import {
   InMemoryLanDiscoveryAdapter,
   type RuntimeLanHost
 } from "./in-memory-lan-discovery-adapter";
+import {
+  ActionRequestRuntime,
+  type ActionCommandEnvelope,
+  type ActionRequestResult
+} from "../actions/action-request-runtime";
+import {
+  ActionRuntimeOrchestrator,
+  type ActionExecutorMap
+} from "../actions/action-orchestrator";
+import { createActionExecutorRegistry } from "../actions/action-registry";
+import type { MediaControlPlatformAdapter } from "../actions/executors/media-control-executor";
+import {
+  type ActionFeedbackListener,
+  type ActionFeedbackEvents
+} from "../actions/action-feedback-events";
+import { type ActionHistoryEntry, type ActionHistoryStore } from "../actions/action-history-store";
+import { SessionAuthGuard } from "../../connectivity/session/session-auth-guard";
 
 export type RuntimeConnectResult =
   | { connected: true; host: DiscoveryHostMetadata; sessionId: string }
@@ -62,6 +79,10 @@ export interface DesktopConnectivityRuntimeConfig {
   hostIpAddress: string;
   knownHosts?: RuntimeLanHost[];
   trustedSeed?: TrustedDeviceRecord[];
+  actionExecutors?: Partial<ActionExecutorMap>;
+  actionPlatform?: NodeJS.Platform;
+  mediaWindowsAdapter?: MediaControlPlatformAdapter;
+  actionNow?: () => string;
   now?: () => string;
 }
 
@@ -73,6 +94,7 @@ export class DesktopConnectivityRuntime {
   private readonly pairingService: PairingService;
   private readonly sessionsByScopedDevice: Map<string, string>;
   private readonly statusListeners: Set<RuntimeStatusListener>;
+  private readonly actionRuntime: ActionRequestRuntime;
   private lastSuccessfulHost: DiscoveryHostMetadata | null;
   private statusSnapshot: RuntimeConnectionStatusSnapshot;
   private activeSessionScope: { deviceId: string; hostId: string } | null;
@@ -122,6 +144,26 @@ export class DesktopConnectivityRuntime {
       trustedConnection: false
     };
     this.activeSessionScope = null;
+
+    const actionGuard = new SessionAuthGuard(this.trustStore, {
+      validateSession: async (sessionId, deviceId, hostId) => {
+        return this.validateSession(sessionId, deviceId, hostId);
+      }
+    });
+    const builtInExecutors = createActionExecutorRegistry({
+      platform: config.actionPlatform,
+      mediaWindowsAdapter: config.mediaWindowsAdapter
+    });
+    const executors: ActionExecutorMap = {
+      ...builtInExecutors,
+      ...(config.actionExecutors ?? {})
+    };
+    const orchestrator = new ActionRuntimeOrchestrator({
+      guard: actionGuard,
+      executors,
+      now: config.actionNow ?? now
+    });
+    this.actionRuntime = new ActionRequestRuntime(actionGuard, orchestrator);
   }
 
   public async scanHosts(requesterDeviceId: string): Promise<DiscoveryHostMetadata[]> {
@@ -274,6 +316,26 @@ export class DesktopConnectivityRuntime {
     return () => {
       this.statusListeners.delete(listener);
     };
+  }
+
+  public async handleAction(command: ActionCommandEnvelope): Promise<ActionRequestResult> {
+    return this.actionRuntime.handleAction(command);
+  }
+
+  public subscribeActionFeedback(listener: ActionFeedbackListener): () => void {
+    return this.actionRuntime.subscribeFeedback(listener);
+  }
+
+  public getActionFeedbackEvents(): ActionFeedbackEvents | null {
+    return this.actionRuntime.getFeedbackEvents();
+  }
+
+  public getActionHistoryStore(): ActionHistoryStore | null {
+    return this.actionRuntime.getHistoryStore();
+  }
+
+  public getRecentActionHistory(limit = 20): ActionHistoryEntry[] {
+    return this.actionRuntime.getRecentHistory(limit);
   }
 
   public setReconnecting(hostId: string, retryAttempt = 0): RuntimeConnectionStatusSnapshot {

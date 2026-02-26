@@ -22,6 +22,7 @@ import {
 
 export interface ActionExecutorResult {
   outcomeCode?: string;
+  detailCode?: string;
 }
 
 export type OpenAppExecutor = (command: OpenAppActionCommand) => Promise<ActionExecutorResult>;
@@ -167,7 +168,7 @@ export class ActionRuntimeOrchestrator {
   private async executeTerminal(command: ActionCommand): Promise<ActionTerminalFeedback> {
     try {
       const result = await this.runExecutor(command);
-      const terminal = this.createSuccessEvent(command, result.outcomeCode);
+      const terminal = this.createTerminalEvent(command, result);
       this.finalizeAction(command, terminal);
       return terminal;
     } catch (error) {
@@ -175,6 +176,37 @@ export class ActionRuntimeOrchestrator {
       this.finalizeAction(command, terminal);
       return terminal;
     }
+  }
+
+  private createTerminalEvent(
+    command: ActionCommand,
+    result: ActionExecutorResult
+  ): ActionTerminalFeedback {
+    const normalizedCode = result.outcomeCode ?? "success";
+    if (normalizedCode === "success" || normalizedCode === "executed") {
+      return this.createSuccessEvent(command, normalizedCode);
+    }
+
+    const failureCode = this.mapFailureCode(normalizedCode);
+    const completedAt = this.now();
+    return {
+      actionId: command.actionId,
+      actionType: command.actionType,
+      deviceId: command.deviceId,
+      hostId: command.hostId,
+      sessionId: command.sessionId,
+      requestedAt: command.requestedAt,
+      emittedAt: completedAt,
+      stage: "failure",
+      outcome: "failure",
+      outcomeCode: failureCode,
+      completedAt,
+      error: {
+        category: failureCode === "validation_failed" ? "validation" : "executor",
+        detailCode: result.detailCode ?? normalizedCode,
+        message: `Executor reported ${normalizedCode}`
+      }
+    };
   }
 
   private async runExecutor(command: ActionCommand): Promise<ActionExecutorResult> {
@@ -227,6 +259,18 @@ export class ActionRuntimeOrchestrator {
       outcomeCode: outcomeCode === "deduplicated" ? "deduplicated" : "executed",
       completedAt
     };
+  }
+
+  private mapFailureCode(outcomeCode: string): ActionFailureCode {
+    if (outcomeCode === "invalid_payload" || outcomeCode === "invalid_url" || outcomeCode === "app_not_found") {
+      return "validation_failed";
+    }
+
+    if (outcomeCode === "unsupported_platform") {
+      return "unsupported_action";
+    }
+
+    return "execution_failed";
   }
 
   private createFailureEvent(
