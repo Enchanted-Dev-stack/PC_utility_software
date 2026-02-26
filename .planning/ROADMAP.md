@@ -26,7 +26,7 @@ This roadmap delivers a local-first remote control MVP by first establishing tru
   3. User can reconnect from a previously paired phone without repeating initial pairing.
   4. User can see live connection status (connected, reconnecting, disconnected) in both phone and PC interfaces.
   5. User can remove a trusted phone from the PC panel, and that phone loses authorization until paired again.
-**Plans**: 4 plans
+**Plans**: 5 plans
 
 Plans:
 - [x] 01-01-PLAN.md - Build LAN discovery and manual IP fallback connectivity foundation.
@@ -51,6 +51,7 @@ Plans:
 - [x] 02-02-PLAN.md - Implement validated open-application and open-website executors with deterministic outcomes.
 - [x] 02-03-PLAN.md - Implement typed media-control executor with explicit platform-aware result codes.
 - [x] 02-04-PLAN.md - Wire guarded runtime execution, feedback stream delivery, and desktop action history integration tests.
+- [x] 02-05-PLAN.md - Close verifier gaps with concrete win32 media adapter wiring and production desktop history panel integration.
 
 ### Phase 3: Dashboard Builder and Live Preview
 **Goal**: Users can fully configure their mobile control dashboard from the PC panel and trust the resulting phone layout.
@@ -72,5 +73,5 @@ Phases execute in numeric order: 1 -> 1.1 -> 2 -> 2.1 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Trusted Connectivity Foundation | 4/4 | Complete | 2026-02-26 |
-| 2. Deterministic Action Runtime | 4/4 | Complete | 2026-02-26 |
+| 2. Deterministic Action Runtime | 5/5 | Complete | 2026-02-26 |
 | 3. Dashboard Builder and Live Preview | 0/TBD | Not started | - |
