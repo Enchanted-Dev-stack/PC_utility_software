@@ -10,6 +10,12 @@ import {
   buildTrustedDevicesPanelModel,
   type TrustedDevicesPanelModel
 } from "../trusted-devices/TrustedDevicesPanel";
+import {
+  createDashboardBuilderRuntimeHandlers,
+  createDashboardBuilderRuntimeModel,
+  type DashboardBuilderRuntimeHandlers,
+  type DashboardBuilderRuntimeModel
+} from "../dashboard/DashboardBuilderModel";
 import type {
   RuntimeConnectionStatusSnapshot,
   RuntimeStatusListener
@@ -20,6 +26,7 @@ export interface DesktopControlPanelRuntimeModel {
   connectionBanner: DesktopConnectionStatusBannerModel;
   trustedDevicesPanel: TrustedDevicesPanelModel;
   actionHistoryPanel: ActionHistoryPanelModel;
+  dashboardBuilder: DashboardBuilderRuntimeModel;
 }
 
 export interface DesktopControlPanelRuntimeModelOptions {
@@ -29,6 +36,7 @@ export interface DesktopControlPanelRuntimeModelOptions {
 export interface DesktopControlPanelRuntimeHandlers {
   getModel(): Promise<DesktopControlPanelRuntimeModel>;
   subscribeStatus(listener: RuntimeStatusListener): () => void;
+  dashboardBuilder: DashboardBuilderRuntimeHandlers;
 }
 
 export async function createDesktopControlPanelRuntimeModel(
@@ -42,6 +50,7 @@ export async function createDesktopControlPanelRuntimeModel(
     runtime,
     options.actionHistoryLimit ?? 20
   );
+  const dashboardBuilder = await createDashboardBuilderRuntimeModel(runtime);
 
   return {
     connectionBanner: buildDesktopConnectionStatusBannerModel({
@@ -51,7 +60,8 @@ export async function createDesktopControlPanelRuntimeModel(
       toastMessage: undefined
     }),
     trustedDevicesPanel,
-    actionHistoryPanel
+    actionHistoryPanel,
+    dashboardBuilder
   };
 }
 
@@ -59,9 +69,12 @@ export function createDesktopControlPanelRuntimeHandlers(
   runtime: DesktopConnectivityRuntime,
   options: DesktopControlPanelRuntimeModelOptions = {}
 ): DesktopControlPanelRuntimeHandlers {
+  const dashboardBuilder = createDashboardBuilderRuntimeHandlers(runtime);
+
   return {
     getModel: async () => createDesktopControlPanelRuntimeModel(runtime, options),
-    subscribeStatus: (listener) => runtime.subscribeStatus(listener)
+    subscribeStatus: (listener) => runtime.subscribeStatus(listener),
+    dashboardBuilder
   };
 }
 

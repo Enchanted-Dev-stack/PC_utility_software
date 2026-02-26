@@ -1,6 +1,7 @@
 import { DesktopConnectivityRuntime } from "../../apps/desktop/src/runtime/connectivity/desktop-connectivity-runtime";
 import { MobileConnectivityClient } from "../../apps/mobile/src/runtime/connectivity/mobile-connectivity-client";
 import {
+  createDesktopControlPanelRuntimeHandlers,
   areRowsNewestFirst,
   createDesktopControlPanelRuntimeModel,
   hasRecentActionRows
@@ -47,6 +48,34 @@ describe("desktop control panel runtime model", () => {
     expect(areRowsNewestFirst(model)).toBe(true);
     expect(model.actionHistoryPanel.rows[0].timestamp.length).toBeGreaterThan(0);
     expect(model.actionHistoryPanel.rows[1].timestamp.length).toBeGreaterThan(0);
+  });
+
+  it("exposes dashboard builder section and runtime handlers without regressing existing sections", async () => {
+    const runtime = createRuntime();
+    const handlers = createDesktopControlPanelRuntimeHandlers(runtime);
+
+    const created = await handlers.dashboardBuilder.createTile({
+      label: "Browser",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+
+    expect(created).toMatchObject({
+      ok: true,
+      statusLabel: "Tile created"
+    });
+
+    const model = await handlers.getModel();
+    expect(model.dashboardBuilder.tiles).toHaveLength(1);
+    expect(model.dashboardBuilder.tiles[0]).toMatchObject({
+      label: "Browser",
+      icon: "browser"
+    });
+
+    expect(model.connectionBanner.label).toBeDefined();
+    expect(model.trustedDevicesPanel.title).toBe("Trusted devices");
+    expect(model.actionHistoryPanel.title).toBe("Recent actions");
   });
 });
 
