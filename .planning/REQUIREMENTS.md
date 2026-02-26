@@ -24,8 +24,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Action Execution
 
-- [ ] **ACTN-01**: User can trigger an "open application" action from a phone tile and the linked app opens on PC.
-- [ ] **ACTN-02**: User can trigger an "open website" action from a phone tile and the linked URL opens on PC.
+- [x] **ACTN-01**: User can trigger an "open application" action from a phone tile and the linked app opens on PC.
+- [x] **ACTN-02**: User can trigger an "open website" action from a phone tile and the linked URL opens on PC.
 - [x] **ACTN-03**: User can trigger media control actions (play/pause, next, previous, volume) from phone and PC responds.
 - [x] **ACTN-04**: User receives execution feedback for each action (received, running, success/failure).
 
@@ -76,8 +76,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-03 | Phase 3 | Pending |
 | DASH-04 | Phase 3 | Pending |
 | DASH-05 | Phase 3 | Pending |
-| ACTN-01 | Phase 2 | Pending |
-| ACTN-02 | Phase 2 | Pending |
+| ACTN-01 | Phase 2 | Complete |
+| ACTN-02 | Phase 2 | Complete |
 | ACTN-03 | Phase 2 | Complete |
 | ACTN-04 | Phase 2 | Complete |
 | SAFE-01 | Phase 2 | Complete |

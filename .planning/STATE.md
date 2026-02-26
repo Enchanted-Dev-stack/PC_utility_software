@@ -42,6 +42,7 @@ Progress: [██████████░░] 50%
 | Phase 01-trusted-connectivity-foundation P04 | 7 min | 3 tasks | 8 files |
 | Phase 02-deterministic-action-runtime P01 | 4 min | 3 tasks | 6 files |
 | Phase 02-deterministic-action-runtime P03 | 2 min | 2 tasks | 4 files |
+| Phase 02-deterministic-action-runtime P02 | 4 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [Phase 02-deterministic-action-runtime]: Write history rows only from emitted terminal lifecycle events so audit outcome always matches feedback outcome.
 - [Phase 02-deterministic-action-runtime]: Media control executor validates runtime command payloads and returns invalid_payload for unknown values without invoking adapters.
 - [Phase 02-deterministic-action-runtime]: Phase 2 media support is Windows-first; non-win32 requests return unsupported_platform deterministically.
+- [Phase 02-deterministic-action-runtime]: Map open_app by curated appId keys to per-platform launch targets; reject unknown keys before process spawn.
+- [Phase 02-deterministic-action-runtime]: Use WHATWG URL validation plus explicit http/https protocol allowlist for open_website.
+- [Phase 02-deterministic-action-runtime]: Model executor outcomes as deterministic typed codes so runtime wiring can map stable feedback taxonomy.
 
 ### Pending Todos
 
