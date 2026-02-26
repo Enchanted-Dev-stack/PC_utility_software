@@ -20,7 +20,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **DASH-02**: User can edit an existing tile's label, icon, and mapped action.
 - [x] **DASH-03**: User can reorder tiles and save layout changes.
 - [x] **DASH-04**: User can delete tiles from the layout.
-- [ ] **DASH-05**: User can preview the mobile dashboard layout in real time from the PC control panel.
+- [x] **DASH-05**: User can preview the mobile dashboard layout in real time from the PC control panel.
 
 ### Action Execution
 
@@ -75,7 +75,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-02 | Phase 3 | Complete |
 | DASH-03 | Phase 3 | Complete |
 | DASH-04 | Phase 3 | Complete |
-| DASH-05 | Phase 3 | Pending |
+| DASH-05 | Phase 3 | Complete |
 | ACTN-01 | Phase 2 | Complete |
 | ACTN-02 | Phase 2 | Complete |
 | ACTN-03 | Phase 2 | Complete |

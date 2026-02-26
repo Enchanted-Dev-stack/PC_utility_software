@@ -67,8 +67,8 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md - Build shared dashboard tile contracts and runtime layout CRUD/reorder/delete foundation.
-- [ ] 03-02-PLAN.md - Implement desktop control-panel dashboard builder models for tile create/edit/delete flows.
-- [ ] 03-03-PLAN.md - Add desktop/mobile live-preview subscription models backed by shared runtime snapshots.
+- [x] 03-02-PLAN.md - Implement desktop control-panel dashboard builder models for tile create/edit/delete flows.
+- [x] 03-03-PLAN.md - Add desktop/mobile live-preview subscription models backed by shared runtime snapshots.
 - [ ] 03-04-PLAN.md - Complete reorder/save + real-time builder-preview integration with end-to-end tests.
 
 ## Progress
@@ -80,4 +80,4 @@ Phases execute in numeric order: 1 -> 1.1 -> 2 -> 2.1 -> 3
 |-------|----------------|--------|-----------|
 | 1. Trusted Connectivity Foundation | 4/4 | Complete | 2026-02-26 |
 | 2. Deterministic Action Runtime | 5/5 | Complete | 2026-02-26 |
-| 3. Dashboard Builder and Live Preview | 1/4 | In Progress | - |
+| 3. Dashboard Builder and Live Preview | 3/4 | In Progress | - |
