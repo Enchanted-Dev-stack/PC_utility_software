@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 3 of 3 (Dashboard Builder and Live Preview)
-Plan: 3 of 4 completed in current phase
-Status: In progress
-Last activity: 2026-02-26 - Completed 03-02 desktop dashboard builder model plan.
+Plan: 4 of 4 completed in current phase
+Status: Complete
+Last activity: 2026-02-26 - Completed 03-04 reorder/save and live preview integration plan.
 
-Progress: [█████████████░] 85%
+Progress: [██████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 13
 - Average duration: 4 min
-- Total execution time: 0.8 hours
+- Total execution time: 0.9 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [█████████████░] 85%
 |-------|-------|-------|----------|
 | 1. Trusted Connectivity Foundation | 4 | 20 min | 5 min |
 | 2. Deterministic Action Runtime | 5 | 18 min | 4 min |
-| 3. Dashboard Builder and Live Preview | 3 | 9 min | 3 min |
+| 3. Dashboard Builder and Live Preview | 4 | 13 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-04 (6 min), 02-05 (2 min), 03-01 (3 min), 03-02 (3 min), 03-03 (3 min)
+- Last 5 plans: 02-05 (2 min), 03-01 (3 min), 03-02 (3 min), 03-03 (3 min), 03-04 (4 min)
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -48,6 +48,7 @@ Progress: [█████████████░] 85%
 | Phase 03-dashboard-builder-and-live-preview P01 | 3 min | 3 tasks | 6 files |
 | Phase 03-dashboard-builder-and-live-preview P03 | 3 min | 3 tasks | 4 files |
 | Phase 03-dashboard-builder-and-live-preview P02 | 3 min | 3 tasks | 4 files |
+| Phase 03-dashboard-builder-and-live-preview P04 | 4 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,8 @@ Recent decisions affecting current work:
 - [Phase 03-dashboard-builder-and-live-preview]: Keep live preview modules read-oriented via runtime get/subscribe handlers while mutation ownership stays in runtime services.
 - [Phase 03-dashboard-builder-and-live-preview]: Model builder editor state from runtime snapshot selection so tile identity always stays keyed by tile id.
 - [Phase 03-dashboard-builder-and-live-preview]: Surface dashboard builder handlers through DesktopControlPanelRuntimeHandlers to keep all runtime mutations async and centralized.
+- [Phase 03-dashboard-builder-and-live-preview]: Treat reorder operations as runtime mutations immediately, then use saveLayout to commit the persisted order baseline for deterministic dirty-state behavior.
+- [Phase 03-dashboard-builder-and-live-preview]: Normalize preview tile order indices from sorted runtime snapshots to keep builder/preview surfaces contiguous and stable after all mutation types.
 
 ### Pending Todos
 
@@ -102,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-26 23:07
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-02-26 23:32
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None

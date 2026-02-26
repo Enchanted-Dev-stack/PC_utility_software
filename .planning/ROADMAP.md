@@ -12,7 +12,7 @@ This roadmap delivers a local-first remote control MVP by first establishing tru
 
 - [x] **Phase 1: Trusted Connectivity Foundation** - Ship secure discovery, pairing, reconnection, session trust, and device revocation.
 - [x] **Phase 2: Deterministic Action Runtime** - Deliver reliable action execution with explicit feedback and audit history.
-- [ ] **Phase 3: Dashboard Builder and Live Preview** - Deliver full tile management workflows and real-time mobile layout preview.
+- [x] **Phase 3: Dashboard Builder and Live Preview** - Deliver full tile management workflows and real-time mobile layout preview.
 
 ## Phase Details
 
@@ -69,7 +69,7 @@ Plans:
 - [x] 03-01-PLAN.md - Build shared dashboard tile contracts and runtime layout CRUD/reorder/delete foundation.
 - [x] 03-02-PLAN.md - Implement desktop control-panel dashboard builder models for tile create/edit/delete flows.
 - [x] 03-03-PLAN.md - Add desktop/mobile live-preview subscription models backed by shared runtime snapshots.
-- [ ] 03-04-PLAN.md - Complete reorder/save + real-time builder-preview integration with end-to-end tests.
+- [x] 03-04-PLAN.md - Complete reorder/save + real-time builder-preview integration with end-to-end tests.
 
 ## Progress
 
@@ -80,4 +80,4 @@ Phases execute in numeric order: 1 -> 1.1 -> 2 -> 2.1 -> 3
 |-------|----------------|--------|-----------|
 | 1. Trusted Connectivity Foundation | 4/4 | Complete | 2026-02-26 |
 | 2. Deterministic Action Runtime | 5/5 | Complete | 2026-02-26 |
-| 3. Dashboard Builder and Live Preview | 3/4 | In Progress | - |
+| 3. Dashboard Builder and Live Preview | 4/4 | Complete | 2026-02-26 |
