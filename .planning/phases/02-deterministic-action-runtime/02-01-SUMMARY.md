@@ -100,10 +100,18 @@ Each task was committed atomically:
 - **Verification:** `npm run test -- tests/actions/action-orchestrator.spec.ts --runInBand`
 - **Committed in:** `e9ade5e`
 
+**3. [Rule 3 - Blocking] STATE automation helpers could not parse current STATE.md shape**
+- **Found during:** State update step after task execution
+- **Issue:** `state advance-plan`, `state update-progress`, and `state record-session` returned parse/no-field errors against existing STATE formatting.
+- **Fix:** Applied successful helpers (`state record-metric`, `state add-decision`, roadmap/requirements updates), then manually updated STATE position, progress, and session continuity fields.
+- **Files modified:** `.planning/STATE.md`, `.planning/ROADMAP.md`
+- **Verification:** Re-read both files and confirmed plan progress/status/position values reflect completed 02-01 execution.
+- **Committed in:** `60b2c54`
+
 ---
 
-**Total deviations:** 2 auto-fixed (1 blocking, 1 bug)
-**Impact on plan:** Both fixes were necessary for deterministic verification and strict TypeScript correctness; no scope creep.
+**Total deviations:** 3 auto-fixed (2 blocking, 1 bug)
+**Impact on plan:** Fixes were required to complete deterministic verification and metadata updates under existing tooling constraints; no scope creep.
 
 ## Authentication Gates
 None.
