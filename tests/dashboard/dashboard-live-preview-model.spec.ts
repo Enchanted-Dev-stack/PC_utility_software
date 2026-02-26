@@ -147,6 +147,82 @@ describe("mobile client subscription", () => {
   });
 });
 
+describe("live preview synchronization", () => {
+  it("keeps desktop and mobile models consistent from the same runtime snapshot", () => {
+    const runtime = createRuntime();
+    const client = new MobileConnectivityClient(runtime, "phone-1");
+
+    const tileA = runtime.createDashboardTile({
+      label: "Browser",
+      icon: "browser",
+      action: {
+        actionType: "open_website",
+        payload: {
+          url: "https://example.com"
+        }
+      }
+    });
+    const tileB = runtime.createDashboardTile({
+      label: "Apps",
+      icon: "apps",
+      action: {
+        actionType: "open_app",
+        payload: {
+          appId: "notepad"
+        }
+      }
+    });
+    expect(tileA.ok).toBe(true);
+    expect(tileB.ok).toBe(true);
+
+    const reordered = runtime.reorderDashboardTiles({ fromIndex: 1, toIndex: 0 });
+    expect(reordered.ok).toBe(true);
+
+    const desktopModel = createDashboardLivePreviewModel(runtime.getDashboardLayout());
+    const mobileModel = createMobileDashboardModel(client.getDashboardLayout());
+
+    expect(desktopModel).toEqual(mobileModel);
+    expect(desktopModel.tiles.map((tile) => tile.label)).toEqual(["Apps", "Browser"]);
+  });
+
+  it("prevents duplicate callback accumulation across unsubscribe and resubscribe cycles", () => {
+    const runtime = createRuntime();
+    const client = new MobileConnectivityClient(runtime, "phone-1");
+
+    const seenVersions: number[] = [];
+
+    const unsubscribeFirst = client.subscribeDashboardLayout((snapshot) => {
+      seenVersions.push(snapshot.version);
+    });
+    unsubscribeFirst();
+
+    const unsubscribeSecond = client.subscribeDashboardLayout((snapshot) => {
+      seenVersions.push(snapshot.version);
+    });
+
+    const created = runtime.createDashboardTile({
+      label: "Music",
+      icon: "media",
+      action: {
+        actionType: "media_control",
+        payload: {
+          command: "play_pause"
+        }
+      }
+    });
+    expect(created.ok).toBe(true);
+    unsubscribeSecond();
+
+    const updatesOnly = seenVersions.filter((version) => version > 0);
+    expect(updatesOnly).toEqual([1]);
+
+    runtime.updateDashboardTile(created.ok ? created.result.id : "", {
+      label: "No listener"
+    });
+    expect(seenVersions.filter((version) => version > 0)).toEqual([1]);
+  });
+});
+
 function createRuntime(): DesktopConnectivityRuntime {
   return new DesktopConnectivityRuntime({
     hostId: "host-primary",
