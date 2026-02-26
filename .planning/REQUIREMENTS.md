@@ -67,28 +67,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CNCT-01 | Phase TBD | Pending |
-| CNCT-02 | Phase TBD | Pending |
-| CNCT-03 | Phase TBD | Pending |
-| CNCT-04 | Phase TBD | Pending |
-| DASH-01 | Phase TBD | Pending |
-| DASH-02 | Phase TBD | Pending |
-| DASH-03 | Phase TBD | Pending |
-| DASH-04 | Phase TBD | Pending |
-| DASH-05 | Phase TBD | Pending |
-| ACTN-01 | Phase TBD | Pending |
-| ACTN-02 | Phase TBD | Pending |
-| ACTN-03 | Phase TBD | Pending |
-| ACTN-04 | Phase TBD | Pending |
-| SAFE-01 | Phase TBD | Pending |
-| SAFE-02 | Phase TBD | Pending |
-| SAFE-03 | Phase TBD | Pending |
+| CNCT-01 | Phase 1 | Pending |
+| CNCT-02 | Phase 1 | Pending |
+| CNCT-03 | Phase 1 | Pending |
+| CNCT-04 | Phase 1 | Pending |
+| DASH-01 | Phase 3 | Pending |
+| DASH-02 | Phase 3 | Pending |
+| DASH-03 | Phase 3 | Pending |
+| DASH-04 | Phase 3 | Pending |
+| DASH-05 | Phase 3 | Pending |
+| ACTN-01 | Phase 2 | Pending |
+| ACTN-02 | Phase 2 | Pending |
+| ACTN-03 | Phase 2 | Pending |
+| ACTN-04 | Phase 2 | Pending |
+| SAFE-01 | Phase 2 | Pending |
+| SAFE-02 | Phase 1 | Pending |
+| SAFE-03 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 ⚠️
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-27*
-*Last updated: 2026-02-27 after initial definition*
+*Last updated: 2026-02-27 after roadmap mapping*
