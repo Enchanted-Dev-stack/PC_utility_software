@@ -1,5 +1,11 @@
 import { TrustedDeviceRevoker } from "../../connectivity/trust/revoke-trusted-device";
 import { TrustedDeviceRecord, TrustedDeviceStore } from "../../connectivity/trust/trust-store";
+import {
+  type RuntimeConnectionStatusSnapshot,
+  type RuntimeStatusEvent,
+  type RuntimeStatusListener,
+  DesktopConnectivityRuntime
+} from "../../runtime/connectivity/desktop-connectivity-runtime";
 
 export interface TrustedDevicePanelItem {
   deviceId: string;
@@ -14,6 +20,19 @@ export interface TrustedDevicesPanelModel {
   subtitle: string;
   items: TrustedDevicePanelItem[];
   emptyStateLabel?: string;
+}
+
+export interface TrustedDevicesPanelRuntimeModel {
+  panel: TrustedDevicesPanelModel;
+  connection: RuntimeConnectionStatusSnapshot;
+  activeHostLabel: string;
+  trustedIndicator: "trusted" | "untrusted";
+}
+
+export interface TrustedDevicesPanelRuntimeHandlers {
+  getModel(): Promise<TrustedDevicesPanelRuntimeModel>;
+  revoke(input: { deviceId: string; hostId: string }): Promise<{ success: boolean; statusLabel: string }>;
+  subscribe(listener: RuntimeStatusListener): () => void;
 }
 
 export async function buildTrustedDevicesPanelModel(
@@ -60,4 +79,39 @@ export async function revokeDeviceFromPanel(
 
 function sortTrustedDevices(records: TrustedDeviceRecord[]): TrustedDeviceRecord[] {
   return [...records].sort((a, b) => b.lastApprovedAt.localeCompare(a.lastApprovedAt));
+}
+
+export function createTrustedDevicesPanelRuntimeHandlers(
+  runtime: DesktopConnectivityRuntime
+): TrustedDevicesPanelRuntimeHandlers {
+  return {
+    getModel: async () => {
+      const panel = await buildTrustedDevicesPanelModel(runtime.getTrustStore());
+      const header = runtime.getHeaderStatus();
+      return {
+        panel,
+        connection: runtime.getConnectionStatus(),
+        activeHostLabel: header.activeHostLabel,
+        trustedIndicator: header.trustedIndicator
+      };
+    },
+    revoke: async (input) => {
+      const result = await runtime.revokeTrustedDevice(input);
+      return {
+        success: result.revoked,
+        statusLabel: result.revoked
+          ? result.invalidatedSessions > 0
+            ? "Access revoked and active session terminated"
+            : "Access revoked"
+          : "Device was already removed"
+      };
+    },
+    subscribe: (listener) => runtime.subscribeStatus(listener)
+  };
+}
+
+export function foldRuntimeStatusFeed(events: RuntimeStatusEvent[]): string[] {
+  return events
+    .map((event) => event.toast)
+    .filter((toast): toast is string => typeof toast === "string");
 }
