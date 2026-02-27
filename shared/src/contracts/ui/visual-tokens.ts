@@ -90,28 +90,28 @@ export const VISUAL_TOKENS: VisualTokens = {
       soft: "#F1F5F9",
       border: "#CBD5E1",
       foreground: "#0F172A",
-      focusRing: "#0EA5E9"
+      focusRing: "#0369A1"
     },
     success: {
       solid: "#15803D",
       soft: "#DCFCE7",
       border: "#86EFAC",
       foreground: "#14532D",
-      focusRing: "#22C55E"
+      focusRing: "#15803D"
     },
     warning: {
       solid: "#B45309",
       soft: "#FEF3C7",
       border: "#FCD34D",
       foreground: "#78350F",
-      focusRing: "#F59E0B"
+      focusRing: "#92400E"
     },
     error: {
       solid: "#B91C1C",
       soft: "#FEE2E2",
       border: "#FCA5A5",
       foreground: "#7F1D1D",
-      focusRing: "#EF4444"
+      focusRing: "#B91C1C"
     }
   }
 };

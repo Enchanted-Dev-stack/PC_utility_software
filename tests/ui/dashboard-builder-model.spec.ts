@@ -3,6 +3,11 @@ import {
   createDashboardBuilderRuntimeHandlers,
   createDashboardBuilderRuntimeModel
 } from "../../apps/desktop/src/ui/dashboard/DashboardBuilderModel";
+import {
+  DESKTOP_PRIMARY_KEYBOARD_CONTROLS,
+  hasDesktopKeyboardCoverage,
+  isFocusVisibilityCompliant
+} from "../../shared/src/contracts/ui/accessibility-standards";
 
 describe("dashboard builder model create update delete", () => {
   it("runs create update delete mutations with deterministic status labels", async () => {
@@ -270,6 +275,23 @@ describe("dashboard builder model create update delete", () => {
     expect(secondSave.feedback.outcome).toBe("noop");
     expect(secondSave.feedback.message).toBe("Layout already saved");
     expect(secondSave.model.interaction.canSave).toBe(false);
+  });
+
+  it("publishes keyboard operability and contrast-safe focus metadata for primary controls", async () => {
+    const runtime = createRuntime();
+    const model = await createDashboardBuilderRuntimeModel(runtime);
+
+    expect(model.accessibility.keyboard.controls).toEqual(DESKTOP_PRIMARY_KEYBOARD_CONTROLS);
+    expect(model.accessibility.keyboard.primaryPath).toEqual(DESKTOP_PRIMARY_KEYBOARD_CONTROLS);
+    expect(hasDesktopKeyboardCoverage(model.accessibility.keyboard)).toBe(true);
+
+    for (const control of DESKTOP_PRIMARY_KEYBOARD_CONTROLS) {
+      const metadata = model.accessibility.primaryControls[control];
+      expect(metadata.keyboardOperable).toBe(true);
+      expect(metadata.focus.focusRingVisible).toBe(true);
+      expect(metadata.focus.contrastRatio).toBeGreaterThanOrEqual(metadata.focus.minContrastRatio);
+      expect(isFocusVisibilityCompliant(metadata.focus)).toBe(true);
+    }
   });
 });
 

@@ -7,6 +7,7 @@ import {
   hasRecentActionRows,
   mergeConnectionSnapshot
 } from "../../apps/desktop/src/ui/control-panel/DesktopControlPanelModel";
+import { isFocusVisibilityCompliant } from "../../shared/src/contracts/ui/accessibility-standards";
 
 describe("desktop control panel runtime model", () => {
   it("includes action history panel rows sourced from runtime history", async () => {
@@ -149,6 +150,19 @@ describe("desktop control panel runtime model", () => {
       source: "builder",
       message: "Tile created"
     });
+  });
+
+  it("keeps critical control-panel sections keyboard-focus compliant", async () => {
+    const runtime = createRuntime();
+    const model = await createDesktopControlPanelRuntimeModel(runtime);
+
+    expect(model.dashboardBuilder.accessibility.primaryControls["layout-save"].keyboardOperable).toBe(true);
+
+    for (const section of Object.values(model.accessibility.sections)) {
+      expect(section.focusRingVisible).toBe(true);
+      expect(section.contrastRatio).toBeGreaterThanOrEqual(section.minContrastRatio);
+      expect(isFocusVisibilityCompliant(section)).toBe(true);
+    }
   });
 });
 
