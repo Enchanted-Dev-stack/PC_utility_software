@@ -168,6 +168,42 @@ function normalizeHttpUrl(value) {
   return parsed.href;
 }
 
+function splitCommandLine(value) {
+  const input = String(value || "").trim();
+  if (!input) {
+    return [];
+  }
+
+  const tokens = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i];
+
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (!inQuotes && /\s/.test(ch)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (current) {
+    tokens.push(current);
+  }
+
+  return tokens;
+}
+
 function launchDetached(command, args) {
   return new Promise((resolve) => {
     let settled = false;
@@ -220,11 +256,17 @@ async function executeDesktopAction(actionType, actionValue) {
   }
 
   if (actionType === "open_app") {
-    const target = String(actionValue || "").trim();
-    if (!target) {
+    const parts = splitCommandLine(actionValue);
+    if (parts.length === 0) {
       return { ok: false, detail: "missing_app_target" };
     }
-    return launchDetached(target, []);
+
+    if (process.platform === "win32") {
+      return launchDetached("cmd", ["/c", "start", "", ...parts]);
+    }
+
+    const [command, ...args] = parts;
+    return launchDetached(command, args);
   }
 
   if (actionType === "media_play_pause") {
