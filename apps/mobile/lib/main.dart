@@ -1261,12 +1261,16 @@ class _TileScreenState extends State<TileScreen> {
         body: SafeArea(
           child: GestureDetector(
             onLongPress: _openQuickControls,
-            child: RefreshIndicator(
-              onRefresh: () async {
-                await _run(_refreshStatus);
-                await _run(_refreshPreview);
-              },
-              child: ListView(
+            child: Builder(
+              builder: (context) {
+                final tileListView = ScrollConfiguration(
+                  behavior: const MaterialScrollBehavior().copyWith(overscroll: false),
+                  child: ListView(
+                    physics: _resizeModeEnabled
+                        ? const NeverScrollableScrollPhysics()
+                        : const AlwaysScrollableScrollPhysics(
+                            parent: ClampingScrollPhysics(),
+                          ),
                 padding: EdgeInsets.all(activeTheme.screenPadding),
                 children: [
                   if (previewTiles.isEmpty)
@@ -1592,7 +1596,21 @@ class _TileScreenState extends State<TileScreen> {
                       },
                     ),
                 ],
-              ),
+                  ),
+                );
+
+                if (_resizeModeEnabled) {
+                  return tileListView;
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    await _run(_refreshStatus);
+                    await _run(_refreshPreview);
+                  },
+                  child: tileListView,
+                );
+              },
             ),
           ),
         ),
