@@ -1288,6 +1288,7 @@ const TILE_THEMES = {
 };
 
 let dashboard = BOOT_DASHBOARD;
+let lastSeenDashboardRevision = Number(BOOT_DASHBOARD.revision || 0);
 let selectedTileId = null;
 let draggedTileId = null;
 let activeResize = null;
@@ -1472,6 +1473,7 @@ async function patchTile(tileId, body, successMessage) {
 
   const payload = await resp.json();
   dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
   selectedTileId = payload.tile.id;
   setForm(payload.tile);
   if (successMessage) {
@@ -2055,6 +2057,7 @@ async function createTileFromCanvasPanel() {
     throw new Error(payload.reason || String(resp.status));
   }
   dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
   selectedTileId = payload.tile.id;
   setMessage("Created tile from mirror payload editor.");
   renderTileList();
@@ -2076,12 +2079,31 @@ function selectTile(id) {
 async function refreshDashboard() {
   const next = await fetch("/dashboard").then((r) => r.json());
   dashboard = next;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
   if (selectedTileId && !selectedTile()) {
     selectedTileId = null;
   }
   renderTileList();
   renderLayoutCanvas();
   renderCanvasPayloadPanel();
+}
+
+async function pollDashboardUpdates() {
+  const next = await fetch("/dashboard").then((r) => r.json());
+  const nextRevision = Number(next.revision || 0);
+  if (nextRevision <= lastSeenDashboardRevision) {
+    return;
+  }
+
+  dashboard = next;
+  lastSeenDashboardRevision = nextRevision;
+  if (selectedTileId && !selectedTile()) {
+    selectedTileId = null;
+  }
+  renderTileList();
+  renderLayoutCanvas();
+  renderCanvasPayloadPanel();
+  await refreshPreview();
 }
 
 async function refreshPreview() {
@@ -2119,6 +2141,7 @@ async function createTile() {
   });
   const payload = await resp.json();
   dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
   selectedTileId = payload.tile.id;
   setForm(payload.tile);
   setMessage("Created tile: " + payload.tile.label);
@@ -2147,6 +2170,7 @@ async function updateSelectedTile() {
   }
   const payload = await resp.json();
   dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
   selectedTileId = payload.tile.id;
   setMessage("Updated tile: " + payload.tile.label);
   renderTileList();
@@ -2272,6 +2296,7 @@ async function hydrate() {
   });
   setInterval(() => {
     refreshHistory().catch(() => {});
+    pollDashboardUpdates().catch(() => {});
   }, 2000);
 }
 

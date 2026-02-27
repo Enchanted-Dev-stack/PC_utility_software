@@ -604,6 +604,17 @@ class _TileScreenState extends State<TileScreen> {
   Timer? _autoSyncTimer;
   bool _autoSyncInFlight = false;
   String _lastLayoutVersion = '';
+  bool _resizeModeEnabled = false;
+  String? _activeResizeTileId;
+  String _activeResizeAxis = 'both';
+  int _activeResizeStartCols = 2;
+  int _activeResizeStartRows = 1;
+  int _activeResizeCurrentCols = 2;
+  int _activeResizeCurrentRows = 1;
+  double _activeResizeAccumDx = 0;
+  double _activeResizeAccumDy = 0;
+  double _activeResizeColStep = 90;
+  double _activeResizeRowStep = 106;
 
   Uri _url(String path) => Uri.parse('${widget.baseUrl}$path');
 
@@ -734,6 +745,237 @@ class _TileScreenState extends State<TileScreen> {
     await _refreshStatus();
   }
 
+  Future<void> _updateTileSize({
+    required String tileId,
+    required int spanCols,
+    required int spanRows,
+  }) async {
+    final response = await http.put(
+      _url('/dashboard/tiles/$tileId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'spanCols': _clampSpan(spanCols, fallback: 2),
+        'spanRows': _clampSpan(spanRows, fallback: 1),
+      }),
+    );
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode >= 400) {
+      throw Exception(body['reason'] ?? response.body);
+    }
+
+    await _refreshPreview();
+    _notify('Tile resized to ${_clampSpan(spanCols, fallback: 2)}x${_clampSpan(spanRows, fallback: 1)}');
+  }
+
+  Future<void> _reorderTiles({required String sourceTileId, required String targetTileId}) async {
+    if (sourceTileId == targetTileId) {
+      return;
+    }
+
+    final ids = previewTiles
+        .map((tile) => '${tile['id'] ?? ''}')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    final sourceIndex = ids.indexOf(sourceTileId);
+    final targetIndex = ids.indexOf(targetTileId);
+    if (sourceIndex == -1 || targetIndex == -1) {
+      return;
+    }
+
+    ids.removeAt(sourceIndex);
+    final nextTargetIndex = ids.indexOf(targetTileId);
+    ids.insert(nextTargetIndex, sourceTileId);
+
+    final response = await http.post(
+      _url('/dashboard/reorder'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'ids': ids}),
+    );
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode >= 400) {
+      throw Exception(body['reason'] ?? response.body);
+    }
+
+    await _refreshPreview();
+    _notify('Tiles reordered');
+  }
+
+  void _setLocalTileSpan(String tileId, int spanCols, int spanRows) {
+    setState(() {
+      previewTiles = previewTiles.map((tile) {
+        if ('${tile['id'] ?? ''}' != tileId) {
+          return tile;
+        }
+        final updated = Map<String, dynamic>.from(tile);
+        updated['spanCols'] = spanCols;
+        updated['spanRows'] = spanRows;
+        return updated;
+      }).toList();
+    });
+  }
+
+  void _beginTileResize({
+    required String tileId,
+    required int spanCols,
+    required int spanRows,
+    required String axis,
+    required double colStep,
+    required double rowStep,
+  }) {
+    _activeResizeTileId = tileId;
+    _activeResizeAxis = axis;
+    _activeResizeStartCols = spanCols;
+    _activeResizeStartRows = spanRows;
+    _activeResizeCurrentCols = spanCols;
+    _activeResizeCurrentRows = spanRows;
+    _activeResizeAccumDx = 0;
+    _activeResizeAccumDy = 0;
+    _activeResizeColStep = colStep;
+    _activeResizeRowStep = rowStep;
+  }
+
+  void _updateTileResize(DragUpdateDetails details) {
+    final tileId = _activeResizeTileId;
+    if (tileId == null) {
+      return;
+    }
+
+    _activeResizeAccumDx += details.delta.dx;
+    _activeResizeAccumDy += details.delta.dy;
+
+    final nextCols = _clampSpan(
+      _activeResizeStartCols +
+          (_activeResizeAxis == 'rows' ? 0 : (_activeResizeAccumDx / _activeResizeColStep).round()),
+      fallback: _activeResizeStartCols,
+    );
+    final nextRows = _clampSpan(
+      _activeResizeStartRows +
+          (_activeResizeAxis == 'cols' ? 0 : (_activeResizeAccumDy / _activeResizeRowStep).round()),
+      fallback: _activeResizeStartRows,
+    );
+
+    if (nextCols == _activeResizeCurrentCols && nextRows == _activeResizeCurrentRows) {
+      return;
+    }
+
+    _activeResizeCurrentCols = nextCols;
+    _activeResizeCurrentRows = nextRows;
+    _setLocalTileSpan(tileId, nextCols, nextRows);
+  }
+
+  void _finishTileResize() {
+    final tileId = _activeResizeTileId;
+    if (tileId == null) {
+      return;
+    }
+
+    final didChange = _activeResizeCurrentCols != _activeResizeStartCols ||
+        _activeResizeCurrentRows != _activeResizeStartRows;
+    final cols = _activeResizeCurrentCols;
+    final rows = _activeResizeCurrentRows;
+
+    _activeResizeTileId = null;
+    _activeResizeAxis = 'both';
+    _activeResizeAccumDx = 0;
+    _activeResizeAccumDy = 0;
+
+    if (!didChange) {
+      return;
+    }
+
+    _run(() => _updateTileSize(tileId: tileId, spanCols: cols, spanRows: rows));
+  }
+
+  Future<void> _openTileResizeEditor(Map<String, dynamic> tile) async {
+    final tileId = '${tile['id'] ?? ''}';
+    if (tileId.isEmpty) {
+      _notify('Tile id missing');
+      return;
+    }
+
+    var cols = _clampSpan(tile['spanCols'], fallback: 2);
+    var rows = _clampSpan(tile['spanRows'], fallback: 1);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Resize ${tile['label'] ?? 'Tile'}', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Expanded(child: Text('Columns')),
+                      IconButton(
+                        onPressed: cols > 1
+                            ? () => setSheetState(() {
+                                  cols -= 1;
+                                })
+                            : null,
+                        icon: const Icon(Icons.remove),
+                      ),
+                      Text('$cols', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      IconButton(
+                        onPressed: cols < 4
+                            ? () => setSheetState(() {
+                                  cols += 1;
+                                })
+                            : null,
+                        icon: const Icon(Icons.add),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      const Expanded(child: Text('Rows')),
+                      IconButton(
+                        onPressed: rows > 1
+                            ? () => setSheetState(() {
+                                  rows -= 1;
+                                })
+                            : null,
+                        icon: const Icon(Icons.remove),
+                      ),
+                      Text('$rows', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      IconButton(
+                        onPressed: rows < 4
+                            ? () => setSheetState(() {
+                                  rows += 1;
+                                })
+                            : null,
+                        icon: const Icon(Icons.add),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _run(() => _updateTileSize(tileId: tileId, spanCols: cols, spanRows: rows));
+                      },
+                      icon: const Icon(Icons.crop_free),
+                      label: const Text('Apply Size'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _run(Future<void> Function() action) async {
     try {
       await action();
@@ -766,7 +1008,7 @@ class _TileScreenState extends State<TileScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Paired: ${paired ? 'yes' : 'no'} | Tiles: ${previewTiles.length}',
+                    'Paired: ${paired ? 'yes' : 'no'} | Tiles: ${previewTiles.length} | Resize: ${_resizeModeEnabled ? 'on' : 'off'}',
                     style: const TextStyle(color: Color(0xFF475569)),
                   ),
                   const SizedBox(height: 12),
@@ -783,6 +1025,19 @@ class _TileScreenState extends State<TileScreen> {
                         onPressed: () => _run(_refreshStatus),
                         icon: const Icon(Icons.wifi_tethering),
                         label: const Text('Refresh Status'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _resizeModeEnabled = !_resizeModeEnabled;
+                          });
+                          setSheetState(() {});
+                          _notify(_resizeModeEnabled
+                              ? 'Resize mode enabled. Tap any tile to resize.'
+                              : 'Resize mode disabled.');
+                        },
+                        icon: Icon(_resizeModeEnabled ? Icons.crop_free : Icons.crop_din),
+                        label: Text(_resizeModeEnabled ? 'Resize Mode ON' : 'Resize Mode OFF'),
                       ),
                       OutlinedButton.icon(
                         onPressed: () {
@@ -1069,119 +1324,267 @@ class _TileScreenState extends State<TileScreen> {
                               final top = placement.row * (rowHeight + gap);
                               final compactTile = height < 120;
 
+                              final tileCard = Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(activeTheme.radius),
+                                  onTap: _resizeModeEnabled
+                                      ? () => _openTileResizeEditor(tile)
+                                      : paired
+                                          ? () => _run(
+                                                () => _sendAction(
+                                                  actionType,
+                                                  tileId: tileId,
+                                                  actionValue: actionValue,
+                                                ),
+                                              )
+                                          : null,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: activeTheme.background,
+                                      borderRadius: BorderRadius.circular(activeTheme.radius),
+                                      border: Border.all(
+                                        color: activeTheme.border,
+                                        width: activeTheme.borderWidth,
+                                      ),
+                                      boxShadow: activeTheme.shadows,
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        if (tileImage != null)
+                                          Positioned.fill(
+                                            child: Opacity(
+                                              opacity: 0.55,
+                                              child: Image(
+                                                image: tileImage,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) =>
+                                                    const SizedBox.shrink(),
+                                              ),
+                                            ),
+                                          ),
+                                        if (tileImage == null)
+                                          Positioned.fill(
+                                            child: Center(
+                                              child: Text(
+                                                iconGlyph,
+                                                style: TextStyle(
+                                                  fontSize: height * 0.52,
+                                                  color: activeTheme.iconTint,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        if (tileImage != null)
+                                          Positioned.fill(
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topCenter,
+                                                  end: Alignment.bottomCenter,
+                                                  colors: [
+                                                    Colors.black.withValues(alpha: 0.12),
+                                                    Colors.black.withValues(alpha: 0.38),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        if (_resizeModeEnabled)
+                                          Positioned(
+                                            top: 8,
+                                            right: 8,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 6,
+                                                vertical: 3,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(alpha: 0.45),
+                                                border: Border.all(color: activeTheme.border),
+                                              ),
+                                              child: Text(
+                                                'RESIZE',
+                                                style: TextStyle(
+                                                  color: activeTheme.text,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        if (_resizeModeEnabled)
+                                          Positioned(
+                                            right: 0,
+                                            top: 24,
+                                            bottom: 24,
+                                            width: 20,
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.translucent,
+                                              onPanStart: (_) => _beginTileResize(
+                                                tileId: tileId,
+                                                spanCols: placement.spanCols,
+                                                spanRows: placement.spanRows,
+                                                axis: 'cols',
+                                                colStep: cellWidth + gap,
+                                                rowStep: rowHeight + gap,
+                                              ),
+                                              onPanUpdate: _updateTileResize,
+                                              onPanEnd: (_) => _finishTileResize(),
+                                              onPanCancel: _finishTileResize,
+                                            ),
+                                          ),
+                                        if (_resizeModeEnabled)
+                                          Positioned(
+                                            left: 24,
+                                            right: 24,
+                                            bottom: 0,
+                                            height: 20,
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.translucent,
+                                              onPanStart: (_) => _beginTileResize(
+                                                tileId: tileId,
+                                                spanCols: placement.spanCols,
+                                                spanRows: placement.spanRows,
+                                                axis: 'rows',
+                                                colStep: cellWidth + gap,
+                                                rowStep: rowHeight + gap,
+                                              ),
+                                              onPanUpdate: _updateTileResize,
+                                              onPanEnd: (_) => _finishTileResize(),
+                                              onPanCancel: _finishTileResize,
+                                            ),
+                                          ),
+                                        if (_resizeModeEnabled)
+                                          Positioned(
+                                            right: 0,
+                                            bottom: 0,
+                                            width: 28,
+                                            height: 28,
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onPanStart: (_) => _beginTileResize(
+                                                tileId: tileId,
+                                                spanCols: placement.spanCols,
+                                                spanRows: placement.spanRows,
+                                                axis: 'both',
+                                                colStep: cellWidth + gap,
+                                                rowStep: rowHeight + gap,
+                                              ),
+                                              onPanUpdate: _updateTileResize,
+                                              onPanEnd: (_) => _finishTileResize(),
+                                              onPanCancel: _finishTileResize,
+                                              child: Icon(
+                                                Icons.open_in_full,
+                                                size: 15,
+                                                color: activeTheme.meta,
+                                              ),
+                                            ),
+                                          ),
+                                        Padding(
+                                          padding: EdgeInsets.all(compactTile ? 8 : 12),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '${placement.spanCols}x${placement.spanRows}',
+                                                style: TextStyle(
+                                                  color: activeTheme.meta,
+                                                  fontSize: compactTile ? 10 : 11,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              const Spacer(),
+                                              Text(
+                                                label,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: compactTile ? 14 : 16,
+                                                  color: activeTheme.text,
+                                                ),
+                                                maxLines: compactTile ? 1 : 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              if (!compactTile) const SizedBox(height: 4),
+                                              if (!compactTile)
+                                                Text(
+                                                  actionType,
+                                                  style: TextStyle(
+                                                    color: activeTheme.meta,
+                                                    fontSize: 12,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+
+                              Widget positionedTileChild = tileCard;
+                              if (_resizeModeEnabled) {
+                                positionedTileChild = DragTarget<String>(
+                                  onWillAcceptWithDetails: (details) =>
+                                      details.data.isNotEmpty && details.data != tileId,
+                                  onAcceptWithDetails: (details) {
+                                    _run(
+                                      () => _reorderTiles(
+                                        sourceTileId: details.data,
+                                        targetTileId: tileId,
+                                      ),
+                                    );
+                                  },
+                                  builder: (context, candidateData, rejectedData) {
+                                    final isHovering = candidateData.isNotEmpty;
+                                    final dragPreview = Container(
+                                      width: width,
+                                      height: height,
+                                      decoration: BoxDecoration(
+                                        color: activeTheme.background,
+                                        border: Border.all(color: activeTheme.border, width: 1.5),
+                                        boxShadow: activeTheme.shadows,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: activeTheme.text,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    );
+                                    final wrapped = LongPressDraggable<String>(
+                                      data: tileId,
+                                      feedback: Opacity(opacity: 0.85, child: Material(color: Colors.transparent, child: dragPreview)),
+                                      childWhenDragging: Opacity(opacity: 0.35, child: tileCard),
+                                      child: tileCard,
+                                    );
+                                    if (!isHovering) {
+                                      return wrapped;
+                                    }
+                                    return DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: activeTheme.text, width: 2),
+                                      ),
+                                      child: wrapped,
+                                    );
+                                  },
+                                );
+                              }
+
                               return Positioned(
                                 left: left,
                                 top: top,
                                 width: width,
                                 height: height,
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(activeTheme.radius),
-                                    onTap: paired
-                                        ? () => _run(
-                                              () => _sendAction(
-                                                actionType,
-                                                tileId: tileId,
-                                                actionValue: actionValue,
-                                              ),
-                                            )
-                                        : null,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: activeTheme.background,
-                                        borderRadius: BorderRadius.circular(activeTheme.radius),
-                                        border: Border.all(
-                                          color: activeTheme.border,
-                                          width: activeTheme.borderWidth,
-                                        ),
-                                        boxShadow: activeTheme.shadows,
-                                      ),
-                                      child: Stack(
-                                        children: [
-                                          if (tileImage != null)
-                                            Positioned.fill(
-                                              child: Opacity(
-                                                opacity: 0.55,
-                                                child: Image(
-                                                  image: tileImage,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error, stackTrace) =>
-                                                      const SizedBox.shrink(),
-                                                ),
-                                              ),
-                                            ),
-                                          if (tileImage == null)
-                                            Positioned.fill(
-                                              child: Center(
-                                                child: Text(
-                                                  iconGlyph,
-                                                  style: TextStyle(
-                                                    fontSize: height * 0.52,
-                                                    color: activeTheme.iconTint,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          if (tileImage != null)
-                                            Positioned.fill(
-                                              child: DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    begin: Alignment.topCenter,
-                                                    end: Alignment.bottomCenter,
-                                                    colors: [
-                                                      Colors.black.withValues(alpha: 0.12),
-                                                      Colors.black.withValues(alpha: 0.38),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          Padding(
-                                            padding: EdgeInsets.all(compactTile ? 8 : 12),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  '${placement.spanCols}x${placement.spanRows}',
-                                                  style: TextStyle(
-                                                    color: activeTheme.meta,
-                                                    fontSize: compactTile ? 10 : 11,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                                const Spacer(),
-                                                Text(
-                                                  label,
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w800,
-                                                    fontSize: compactTile ? 14 : 16,
-                                                    color: activeTheme.text,
-                                                  ),
-                                                  maxLines: compactTile ? 1 : 2,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                                if (!compactTile) const SizedBox(height: 4),
-                                                if (!compactTile)
-                                                  Text(
-                                                    actionType,
-                                                    style: TextStyle(
-                                                      color: activeTheme.meta,
-                                                      fontSize: 12,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                child: positionedTileChild,
                               );
                             }).toList(),
                           ),
