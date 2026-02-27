@@ -11,8 +11,32 @@ import {
 } from "../../shared/src/contracts/ui/accessibility-standards";
 import { VISUAL_TOKENS } from "../../shared/src/contracts/ui/visual-tokens";
 
+const {
+  ACCESSIBILITY_VERIFICATION_ROUTE,
+  getAccessibilityVerificationPrerequisite
+} = require("../../apps/desktop/server.js");
+
 describe("accessibility regression gate", () => {
+  it("fails fast when builder surface prerequisite is unavailable", () => {
+    const prerequisite = getAccessibilityVerificationPrerequisite();
+
+    expect(prerequisite.route).toBe(ACCESSIBILITY_VERIFICATION_ROUTE);
+    expect(prerequisite.requiredControls.length).toBeGreaterThan(0);
+    expect(() => assertBuilderSurfacePrerequisite(prerequisite)).not.toThrow();
+
+    expect(() =>
+      assertBuilderSurfacePrerequisite({
+        ...prerequisite,
+        ready: false,
+        requiredControls: []
+      })
+    ).toThrow(
+      `Missing builder surface prerequisite. Open ${ACCESSIBILITY_VERIFICATION_ROUTE} and verify builder controls before running keyboard/focus checks.`
+    );
+  });
+
   it("keeps desktop builder primary controls keyboard-operable with visible contrast-safe focus", () => {
+    assertBuilderSurfacePrerequisite(getAccessibilityVerificationPrerequisite());
     const builder = createDashboardBuilderModelFromSnapshot(createSnapshot());
 
     expect(builder.accessibility.keyboard.controls).toEqual(DESKTOP_PRIMARY_KEYBOARD_CONTROLS);
@@ -79,4 +103,16 @@ function createSnapshot() {
       }
     ]
   };
+}
+
+function assertBuilderSurfacePrerequisite(prerequisite: {
+  ready: boolean;
+  requiredControls: string[];
+  route: string;
+}) {
+  if (!prerequisite.ready || prerequisite.requiredControls.length === 0) {
+    throw new Error(
+      `Missing builder surface prerequisite. Open ${prerequisite.route} and verify builder controls before running keyboard/focus checks.`
+    );
+  }
 }
