@@ -128,7 +128,12 @@ Plans:
   1. User can navigate primary desktop builder controls by keyboard and always see a visible focus indicator with readable contrast.
   2. User can read and use critical text and controls on desktop and mobile with accessible text sizing and touch/click targets.
   3. Maintainer can run automated visual and accessibility checks that fail on UI regressions before release.
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [x] 07-01-PLAN.md - Establish desktop keyboard/focus accessibility baseline contracts and model regression checks.
+- [ ] 07-02-PLAN.md - Add readable typography and target-size accessibility minima across tokens/themes.
+- [ ] 07-03-PLAN.md - Deliver deterministic accessibility and visual regression release gate command.
 
 ## Progress
 
@@ -143,4 +148,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Unified Visual System | 3/3 | Complete | 2026-02-27 |
 | 5. Builder Interaction Clarity | 3/3 | Complete | 2026-02-27 |
 | 6. Preview Fidelity and Persistence | 3/3 | Complete | 2026-02-27 |
-| 7. Accessibility and Regression Gates | 0/TBD | Not started | - |
+| 7. Accessibility and Regression Gates | 1/3 | In Progress | - |
