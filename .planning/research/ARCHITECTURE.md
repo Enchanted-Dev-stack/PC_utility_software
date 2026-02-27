@@ -1,229 +1,264 @@
 # Architecture Research
 
-**Domain:** local Wi-Fi phone-to-PC remote control app
+**Domain:** UI polish integration for existing desktop builder + live preview + mobile dashboard runtime
 **Researched:** 2026-02-27
-**Confidence:** MEDIUM
+**Confidence:** MEDIUM-HIGH
 
 ## Standard Architecture
 
 ### System Overview
 
 ```text
-┌────────────────────────────────────────────────────────────────────────────┐
-│                         Client Interaction Layer                           │
-├────────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────┐      ┌──────────────────────────────────────┐  │
-│  │ Mobile Controller UI │      │ Desktop Control Panel + Live Preview │  │
-│  └──────────┬───────────┘      └──────────────┬───────────────────────┘  │
-│             │                                   │                          │
-├─────────────┴───────────────────────────────────┴──────────────────────────┤
-│                          Local Control Runtime (PC)                        │
-├────────────────────────────────────────────────────────────────────────────┤
-│  ┌────────────────┐  ┌───────────────────┐  ┌──────────────────────────┐  │
-│  │ DiscoverySvc   │  │ Pairing/AuthSvc   │  │ Realtime Gateway (WS)    │  │
-│  │ (mDNS/QR seed) │  │ (device trust)    │  │ (commands/events/acks)   │  │
-│  └────────┬───────┘  └────────┬──────────┘  └──────────┬───────────────┘  │
-│           │                    │                        │                  │
-│  ┌────────┴────────────────────┴────────────────────────┴───────────────┐ │
-│  │                  Domain Application Services                           │ │
-│  │  Layout Service | Action Registry | Command Router | Audit Logger      │ │
-│  └────────┬───────────────────────────────────────────────────────────────┘ │
-├───────────┴────────────────────────────────────────────────────────────────┤
-│                          Execution + Persistence Layer                      │
-├────────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────┐        ┌───────────────────────────────────────┐ │
-│  │ Action Executor     │        │ SQLite (config, trusted devices, log) │ │
-│  │ (open app/url/media)│        │ + file asset store (icons/thumbnails) │ │
-│  └─────────────────────┘        └───────────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                             Existing Runtime Core                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ DesktopConnectivityRuntime                                                   │
+│  ├─ Connectivity + trust + session auth                                     │
+│  ├─ Deterministic action execution + history                                │
+│  └─ Dashboard layout CRUD + snapshot subscriptions                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                  │ (unchanged contracts/snapshots)
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         UI Model and Handler Layer                           │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ DesktopControlPanelModel                                                     │
+│  ├─ DashboardBuilderModel (mutations via runtime)                           │
+│  ├─ DashboardLivePreviewModel (read/subscribe only)                         │
+│  ├─ ActionHistoryPanel model                                                 │
+│  └─ Connection/TrustedDevices models                                         │
+│ MobileDashboardModel (read model from layout snapshot)                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                  │ (new visual semantics only)
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                      New UI Polish Architecture Additions                    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Design Tokens (single source)                                                │
+│  ├─ color/spacing/type/radius/elevation/motion tokens                       │
+│  ├─ desktop export (CSS variables/Tailwind theme)                           │
+│  └─ mobile export (token map for NativeWind/RN)                             │
+│ Component Variant Layer                                                      │
+│  ├─ shared variant contracts: tone/state/size                                │
+│  └─ desktop + mobile primitive wrappers consume same token names             │
+│ Visual QA Layer                                                              │
+│  ├─ Storybook states (hover/focus/active/error/empty/loading)               │
+│  └─ Playwright screenshot + accessibility parity checks                      │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
+### Component Responsibilities (integration-focused)
 
 | Component | Responsibility | Typical Implementation |
 |-----------|----------------|------------------------|
-| Mobile Controller UI | Render published tiles, send tap intents, show execution status | Native mobile app or PWA with persistent local session token |
-| Desktop Control Panel | Manage tiles/layout/icons and map tile -> action payload | Desktop web UI inside Electron/Tauri shell |
-| Discovery Service | Make PC discoverable on LAN and expose bootstrap metadata | DNS-SD/mDNS advertisement with service type + host/port |
-| Pairing/Auth Service | Establish trusted relationship and issue device credential | One-time pairing code/QR + signed long-lived device token |
-| Realtime Gateway | Bidirectional low-latency channel for command/ack/state events | WebSocket (or Socket.IO) namespace per paired device |
-| Action Registry | Validate, normalize, and version action payloads | Strict schema validation + allowlisted action types |
-| Command Router | Route command to idempotent executor path and produce correlation IDs | In-process command bus with retry-safe IDs |
-| Action Executor | Invoke OS-level actions safely and return deterministic outcomes | Child-process launch wrappers + media control adapters |
-| Audit Logger | Persist command request/result for trust, debugging, replay hints | Append-only event table in SQLite |
-| Persistence | Source of truth for dashboard config and trust state | SQLite in WAL mode for local concurrency |
+| `DesktopConnectivityRuntime` (modified: no behavior changes) | Remains source of truth for layout and status snapshots consumed by polished UI | Keep existing APIs (`getDashboardLayout`, `subscribeDashboardLayout`, status/history accessors); no visual tokens or style state added here |
+| `DashboardBuilderModel` (modified) | Expose UI-friendly state metadata needed for polish (interaction states, disabled/loading labels) while routing all mutations to runtime | Extend returned model shape only; keep mutation path runtime-owned |
+| `DashboardLivePreviewModel` (modified) | Render-ready preview mapping with deterministic order and polish metadata (tile emphasis/tone/motion hints) | Derive all fields from snapshot + token aliases; never own mutable layout state |
+| `MobileDashboardModel` (modified) | Mobile parity surface for typography/spacing/motion token application using same semantic state names as desktop preview | Add style semantics fields (not transport fields); preserve `layoutVersion` semantics |
+| `design-tokens` module (new) | Single design language for desktop and mobile visual consistency | Style Dictionary token source + generated desktop/mobile outputs |
+| `ui-primitives` layer (new) | Reusable component states (`default`, `hover`, `focus`, `active`, `disabled`, `error`) shared by builder, preview, and mobile dashboard | CVA + token aliases + per-surface adapters |
+| `visual-regression` test harness (new) | Prevent polish regressions and desktop/mobile preview drift | Storybook scenario matrix + Playwright screenshot/a11y checks |
 
 ## Recommended Project Structure
 
 ```text
-src/
-├── apps/
-│   ├── desktop-shell/          # Electron/Tauri bootstrap and packaging
-│   ├── desktop-panel/          # Tile editor + live preview UI
-│   └── mobile-controller/      # Phone runtime UI
-├── runtime/
-│   ├── gateway/                # WebSocket/Socket.IO transport handlers
-│   ├── discovery/              # mDNS/DNS-SD announce + browse
-│   ├── pairing/                # pairing handshake + device trust
-│   ├── commands/               # command bus, idempotency, ACK tracking
-│   └── execution/              # app/url/media executors
-├── domain/
-│   ├── tiles/                  # tile entities, ordering, icon refs
-│   ├── actions/                # action schemas and validators
-│   └── events/                 # audit event types and mappers
-├── infra/
-│   ├── db/                     # SQLite adapters, migrations, repositories
-│   ├── assets/                 # icon storage + thumbnail pipeline
-│   └── security/               # token signing, key handling
-└── shared/
-    ├── contracts/              # request/event DTOs used by all clients
-    └── utils/                  # logging, clocks, IDs, error mapping
+apps/
+├── desktop/
+│   └── src/
+│       ├── ui/
+│       │   ├── control-panel/          # Existing runtime-composed panel model (modify)
+│       │   ├── dashboard/              # Builder + preview models (modify)
+│       │   └── primitives/             # New desktop primitive wrappers (add)
+│       └── styles/
+│           └── tokens.css              # Generated token variables (add)
+├── mobile/
+│   └── src/
+│       ├── ui/dashboard/               # Existing dashboard model (modify)
+│       └── ui/primitives/              # New mobile primitive wrappers (add)
+packages/
+└── design-tokens/                      # New token source/build output (add)
+    ├── src/tokens/                     # Core + semantic token definitions
+    ├── dist/desktop/                   # Generated CSS variables/Tailwind theme bridge
+    └── dist/mobile/                    # Generated token map for RN/NativeWind
+tests/
+├── ui/visual/                          # New screenshot + interaction state tests
+└── dashboard/                          # Existing runtime integration tests (keep)
 ```
 
 ### Structure Rationale
 
-- **runtime/:** isolates transport/discovery/pairing risk from UI churn and keeps low-latency command path testable in headless mode.
-- **domain/:** prevents transport-specific logic from polluting action semantics, so swapping WS libraries does not rewrite business logic.
-- **infra/:** keeps persistence/security edge cases localized, which reduces blast radius when hardening credentials and migrations.
-- **shared/contracts:** enforces one typed protocol for desktop+mobile+runtime, minimizing integration drift.
+- **`packages/design-tokens/`** is new and isolated so visual changes cannot accidentally alter runtime/action behavior.
+- **`apps/*/ui/primitives/`** gives explicit boundary between semantic component states and domain/runtime handlers.
+- **`tests/ui/visual/`** adds a quality gate for polish while existing runtime integration tests continue validating behavior parity.
 
 ## Architectural Patterns
 
-### Pattern 1: PC-Hosted Monolith with Thin Clients
+### Pattern 1: Runtime-Immutable, View-Semantic Models
 
-**What:** Keep all authority and action execution on the PC host runtime; mobile and panel are clients only.
-**When to use:** MVP through early adoption (<10k active installs) where reliability and low ops cost matter more than distributed scale.
-**Trade-offs:** Fastest path and easiest debugging; limited remote/WAN support until later relay architecture is introduced.
-
-**Example:**
-```typescript
-// mobile sends intent only; host decides and executes
-emit("command.execute", {
-  commandId,
-  tileId,
-  clientTs,
-});
-```
-
-### Pattern 2: Command + Acknowledgement Protocol with Correlation IDs
-
-**What:** Every command has `commandId`, explicit ACK stages (`received`, `started`, `succeeded|failed`), and timeout semantics.
-**When to use:** Always for remote-control semantics where users need trust that a tap mapped to a single deterministic action.
-**Trade-offs:** Slightly more protocol complexity; major gain in debuggability, retry safety, and user confidence.
+**What:** Keep runtime snapshots authoritative, and add polish semantics in UI models as derived fields.
+**When to use:** Any UI polish that needs extra display metadata but must not touch transport/business logic.
+**Trade-offs:** Slightly larger UI model shape; strongest protection against behavior regressions.
 
 **Example:**
 ```typescript
-type CommandAck =
-  | { stage: "received"; commandId: string }
-  | { stage: "started"; commandId: string }
-  | { stage: "succeeded"; commandId: string; result: "ok" }
-  | { stage: "failed"; commandId: string; code: string; detail?: string };
+type PolishedTileView = {
+  id: string;
+  label: string;
+  order: number;
+  tone: "default" | "selected" | "disabled";
+  emphasis: "normal" | "high";
+};
+
+function toPolishedTileView(snapshotTile: DashboardLayoutSnapshot["tiles"][number]): PolishedTileView {
+  return {
+    id: snapshotTile.id,
+    label: snapshotTile.label,
+    order: snapshotTile.order,
+    tone: "default",
+    emphasis: "normal"
+  };
+}
 ```
 
-### Pattern 3: Schema-First Action Registry (Allowlist)
+### Pattern 2: Token-First Visual Contracts
 
-**What:** Route only known action types (`open_app`, `open_url`, `media`) through versioned schemas and executors.
-**When to use:** Security-sensitive local execution where arbitrary payloads must never map directly to shell execution.
-**Trade-offs:** Slower to add new action types; much lower command-injection risk and easier compatibility handling.
+**What:** Components consume semantic tokens (`surface.card`, `text.muted`, `motion.fast`) rather than hard-coded per-screen values.
+**When to use:** All builder, preview, and mobile dashboard surfaces in this milestone.
+**Trade-offs:** Initial setup cost; large long-term reduction in cross-surface drift.
+
+### Pattern 3: State Matrix QA Before Motion Expansion
+
+**What:** Lock visual state matrix first (default/hover/focus/active/error/empty/loading), then add transitions/animations.
+**When to use:** UI polish milestones where behavior is already shipped and regressions are costly.
+**Trade-offs:** Slower early animation work; faster stabilization and easier bug isolation.
 
 ## Data Flow
 
-### Request Flow
+### Request Flow (after polish integration)
 
 ```text
-[Tap Tile on Phone]
+[User interaction on desktop/mobile]
     ↓
-[Mobile Controller] -> [Realtime Gateway] -> [Command Router] -> [Action Executor]
-    ↓                       ↓                    ↓                    ↓
-[UI ACK/Event] <- [ACK stream] <- [Audit Logger + Store] <- [Execution Result]
+[UI primitive state + token styling]
+    ↓
+[UI Model Handlers] -> [DesktopConnectivityRuntime mutations/queries] -> [DashboardLayoutService]
+    ↓                         ↓
+[Builder/Preview/Mobile model projection with polish semantics] <- [runtime snapshot/event]
 ```
 
 ### State Management
 
 ```text
-[SQLite + Event Log]
-    ↓ (publish changes)
-[Runtime Domain Services] -> [Gateway emits deltas] -> [Desktop + Mobile stores]
-    ↑                                                    ↓
-    +------------------- [UI mutation commands] ---------+
+[Runtime snapshots/events] -----------------> [Desktop and Mobile UI models]
+           ^                                              |
+           |                                              v
+      [Runtime mutations] <--- [Builder handlers]   [Token-based rendering only]
 ```
 
-### Key Data Flows
+### Key Data Flows for This Milestone
 
-1. **Pairing flow:** Mobile discovers host (mDNS or manual IP) -> enters/scans one-time code -> host binds device and issues credential -> subsequent sessions authenticate with credential.
-2. **Dashboard publish flow:** Desktop edits tiles -> validates action payloads -> persists config -> runtime publishes versioned layout snapshot -> mobile atomically swaps to new version.
-3. **Command execution flow:** Mobile sends `commandId` + `tileId` -> router resolves action -> executor runs OS action -> ACK stages stream back -> final result persisted and shown in UI.
-4. **Recovery flow:** On reconnect, mobile sends last seen offset/version -> host replays missed config/events when available; otherwise forces full snapshot sync.
+1. **Builder interaction state flow:** builder handler triggers runtime mutation, UI model recomputes selected/dirty/error states, primitive components render tokenized states.
+2. **Preview parity flow:** runtime snapshot drives both desktop preview and mobile model; both resolve style semantics from the same token names.
+3. **Feedback polish flow:** existing status/toast/history models gain visual state mapping without altering runtime status/event payloads.
 
-## Implementation Sequence (Risk-Minimizing MVP)
+## Integration Points (explicit new vs modified)
 
-1. **Host runtime skeleton (no UI):** boot process, SQLite schema, logging, health endpoint.
-2. **Deterministic command plane:** WebSocket channel, command IDs, ACK protocol, in-memory fake executor.
-3. **Real executors for 3 action types:** open app, open URL, media controls with strict allowlist validation.
-4. **Pairing and trust:** one-time code/QR pairing, persistent device credentials, connection auth gate.
-5. **Desktop control panel CRUD:** tile create/edit/reorder/delete, action mapping, publish versioning.
-6. **Mobile controller UI:** consume published layout, execute commands, render live ACK/result states.
-7. **Discovery and polish:** mDNS discovery, fallback manual IP entry, reconnect/resync, structured diagnostics.
+### Internal Boundaries
 
-**Why this order minimizes risk:** It proves the core value loop (tap -> deterministic action -> visible ACK) before spending time on editor polish and LAN discovery edge cases.
-
-## Scaling Considerations
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 0-1k users | Single-host in-process runtime is sufficient; prioritize reliability telemetry over infra complexity. |
-| 1k-100k users | Add stronger reconnect recovery, richer audit indexing, crash-safe queueing for pending commands; keep single-node per installation. |
-| 100k+ users | Introduce optional cloud relay/control plane for WAN and multi-device sync; keep local execution agent authoritative on each PC. |
-
-### Scaling Priorities
-
-1. **First bottleneck:** reconnect and state drift under flaky Wi-Fi; solve with versioned snapshots + offset-based replay.
-2. **Second bottleneck:** command trust/debuggability; solve with end-to-end correlation IDs and searchable audit events.
-
-## Anti-Patterns
-
-### Anti-Pattern 1: UI-Driven Direct OS Execution
-
-**What people do:** Desktop/mobile UI directly invokes OS commands or shell calls.
-**Why it's wrong:** Blends trust boundaries, increases injection risk, and makes retry/idempotency impossible.
-**Do this instead:** Force all execution through host runtime command router + allowlisted executors.
-
-### Anti-Pattern 2: Best-Effort Fire-and-Forget Commands
-
-**What people do:** Send command events without IDs/ACKs and assume success.
-**Why it's wrong:** Users lose trust when taps are duplicated, dropped, or silently fail during network jitter.
-**Do this instead:** Use explicit ACK stages, retry policy, and terminal success/failure state.
-
-## Integration Points
+| Boundary | New vs Modified | Communication | Notes |
+|----------|-----------------|---------------|-------|
+| `DesktopControlPanelModel` ↔ `DashboardBuilderModel` | Modified | Direct model composition | Add style-semantic fields and state labels; keep existing async handler routing.
+| `DashboardBuilderModel` ↔ `DesktopConnectivityRuntime` | Modified | Existing runtime APIs | No new runtime mutation endpoints needed for polish.
+| `DashboardLivePreviewModel` ↔ `DesktopConnectivityRuntime.subscribeDashboardLayout` | Modified | Existing subscription stream | Preserve current realtime behavior; add projection-only visual metadata.
+| `MobileDashboardModel` ↔ dashboard snapshot contract | Modified | Existing shared contract | Keep `layoutVersion`/order semantics identical to desktop preview.
+| `design-tokens` ↔ desktop/mobile UI layers | New | Generated artifacts import | New cross-surface integration; must be one-way (tokens -> UI), not runtime-aware.
+| `ui-primitives` ↔ feature models | New | Props/state contract | Primitive components accept semantic props, never runtime services directly.
+| `visual regression tests` ↔ Storybook/views | New | Screenshot/assertion pipeline | Gate visual drift and accessibility regressions in CI.
 
 ### External Services
 
 | Service | Integration Pattern | Notes |
 |---------|---------------------|-------|
-| DNS-SD/mDNS | Advertise `_service._tcp.local` and discover host endpoint on LAN | Standard local-link service discovery; include manual-IP fallback for constrained networks. |
-| WebSocket transport | Persistent bidirectional command/event channel | Prefer secure channel on trusted pairings (`wss` where practical). |
-| OS process/media APIs | Adapter layer behind Action Executor | Never pass unsanitized user input to shell-backed execution paths. |
+| Storybook | Isolated state rendering for desktop/mobile components | Use as baseline catalog before screenshot automation.
+| Playwright + axe-core | Snapshot + accessibility verification on key states | Run after runtime integration tests; visual tests should not replace behavioral tests.
+| Style Dictionary | Build-time token generation | Generated outputs are consumed by UI only; runtime remains unaware.
 
-### Internal Boundaries
+## Build Order (dependency-aware for milestone plans)
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| mobile-controller <-> runtime/gateway | typed realtime protocol | Includes auth token, command IDs, ACK stream, resync operations. |
-| desktop-panel <-> runtime/domain | command/query API + events | Panel writes intent; runtime remains source of truth. |
-| runtime/commands <-> runtime/execution | in-process command bus | Enforces validation, idempotency, and audit hooks before execution. |
+1. **Polish Foundation: token pipeline and semantic naming (new components only)**
+   - Build `packages/design-tokens` with color/type/spacing/radius/elevation/motion primitives and semantic aliases.
+   - Output desktop and mobile token artifacts.
+   - Dependency: none; this is prerequisite for all visual consistency work.
+
+2. **Desktop primitive and state matrix rollout (new + modified)**
+   - Add `apps/desktop/src/ui/primitives/*` and refactor high-impact surfaces first: connection banner, action history rows, dashboard builder controls.
+   - Extend UI models with state semantics (`tone`, `transition`, `disabled`) as derived values.
+   - Dependency: Phase 1 tokens.
+
+3. **Preview/mobile parity projection updates (modified)**
+   - Update `DashboardLivePreviewModel` and `MobileDashboardModel` to expose matching style semantics while preserving shared runtime ordering/version.
+   - Add parity checks asserting desktop preview and mobile model consume same token aliases for equivalent states.
+   - Dependency: Phase 2 component state contracts.
+
+4. **Interaction polish and motion layer (modified)**
+   - Apply motion tokens/transitions to builder interactions, status transitions, and tile feedback.
+   - Respect reduced-motion path and keep all motion declarative at UI layer.
+   - Dependency: stable state matrix and parity semantics from Phases 2-3.
+
+5. **Quality gates and regression hardening (new test infrastructure)**
+   - Add Storybook scenarios and Playwright screenshot/a11y tests for critical desktop/mobile states.
+   - Gate merges on: visual parity, focus visibility, contrast/accessibility checks, and no change to runtime integration tests.
+   - Dependency: all previous phases.
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Runtime Pollution with Visual Concerns
+
+**What people do:** Add styling/motion flags to `DesktopConnectivityRuntime` and shared dashboard contracts.
+**Why it's wrong:** Couples product presentation to transport/domain behavior and risks regressions in trusted connectivity/action flows.
+**Do this instead:** Keep runtime contracts stable; derive visual semantics in UI model projection layer.
+
+### Anti-Pattern 2: Desktop-Only Polish Tokens
+
+**What people do:** Hard-code desktop style values and attempt to "match mobile later."
+**Why it's wrong:** Reintroduces builder-preview-mobile drift, the exact issue this milestone aims to remove.
+**Do this instead:** Use a single token source and generate platform-specific outputs before component refactors.
+
+### Anti-Pattern 3: Motion Before State Clarity
+
+**What people do:** Ship animations without locking hover/focus/active/error/empty semantics first.
+**Why it's wrong:** Creates flashy but inconsistent UX and makes regression debugging hard.
+**Do this instead:** Define and test state matrix first, then layer motion tokens.
+
+## Scaling Considerations
+
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| 0-1k users | Keep monorepo runtime + token pipeline; prioritize fast UI iteration and deterministic behavior regression checks. |
+| 1k-100k users | Add stricter visual test sharding and baseline management per surface to control CI runtime. |
+| 100k+ users | Introduce design system governance (token versioning policy, deprecation workflow) before large contributor growth. |
+
+### Scaling Priorities
+
+1. **First bottleneck:** style drift between desktop preview and mobile dashboard; solve with shared semantic tokens + parity tests.
+2. **Second bottleneck:** regressions from broad UI refactors; solve with state-matrix screenshots and behavior-test co-gating.
 
 ## Sources
 
-- RFC 6455 WebSocket Protocol (IETF, 2011, updated by later RFCs) - handshake model, ws/wss, security considerations. Confidence: HIGH. https://www.rfc-editor.org/rfc/rfc6455
-- RFC 6762 Multicast DNS (IETF, 2013) - local-link discovery behavior and constraints. Confidence: HIGH. https://www.rfc-editor.org/rfc/rfc6762
-- RFC 6763 DNS-Based Service Discovery (IETF, 2013, updated by RFC8553) - service instance discovery pattern. Confidence: HIGH. https://www.rfc-editor.org/rfc/rfc6763
-- Socket.IO delivery guarantees (updated Jan 22, 2026) - at-most-once default and app-level at-least-once patterns. Confidence: MEDIUM. https://socket.io/docs/v4/delivery-guarantees
-- Socket.IO connection state recovery (updated Jan 22, 2026) - reconnect/session restoration semantics. Confidence: MEDIUM. https://socket.io/docs/v4/connection-state-recovery
-- Node.js child_process docs (v25.7.0) - command execution APIs and shell-injection cautions. Confidence: HIGH. https://nodejs.org/api/child_process.html
-- SQLite WAL documentation (updated 2025-05-31) - concurrency model and checkpoint behavior for local persistence. Confidence: HIGH. https://www.sqlite.org/wal.html
-- Apple Developer: "How to use multicast networking in your app" (2020-06-22) - iOS local-network privacy, Bonjour declarations, multicast entitlement. Confidence: MEDIUM. https://developer.apple.com/news/?id=0oi77447
-- Electron security checklist (latest docs) - IPC sender validation and secure content guidance for desktop shell hardening. Confidence: MEDIUM. https://www.electronjs.org/docs/latest/tutorial/security
+- `C:/Users/user/pc-remote-control-app/.planning/PROJECT.md` - milestone goal and constraints (HIGH)
+- `C:/Users/user/pc-remote-control-app/.planning/STATE.md` - locked architecture decisions from phases 1-3 (HIGH)
+- `C:/Users/user/pc-remote-control-app/.planning/ROADMAP.md` - completed runtime foundation and dependency order (HIGH)
+- `C:/Users/user/pc-remote-control-app/apps/desktop/src/runtime/connectivity/desktop-connectivity-runtime.ts` - runtime boundaries and dashboard/state APIs (HIGH)
+- `C:/Users/user/pc-remote-control-app/apps/desktop/src/ui/control-panel/DesktopControlPanelModel.ts` - current UI composition boundary (HIGH)
+- `C:/Users/user/pc-remote-control-app/apps/desktop/src/ui/dashboard/DashboardBuilderModel.ts` - mutation routing and dirty-state semantics (HIGH)
+- `C:/Users/user/pc-remote-control-app/apps/desktop/src/ui/dashboard/DashboardLivePreviewModel.ts` - preview projection and runtime subscription usage (HIGH)
+- `C:/Users/user/pc-remote-control-app/apps/mobile/src/ui/dashboard/MobileDashboardModel.ts` - mobile dashboard projection baseline (HIGH)
+- `C:/Users/user/pc-remote-control-app/tests/dashboard/dashboard-builder-live-preview-integration.spec.ts` - current parity and synchronization guarantees to preserve (HIGH)
+- https://styledictionary.com/getting-started/installation/ - multi-platform token generation workflow (official, HIGH)
+- https://tailwindcss.com/docs/theme - token-driven theme variable architecture (official, HIGH)
+- https://playwright.dev/docs/test-snapshots - screenshot baseline workflow and environment caveats (official, HIGH)
+- https://storybook.js.org/docs/get-started/frameworks/react-vite - component state catalog architecture for React surfaces (official, HIGH)
 
 ---
-*Architecture research for: local Wi-Fi phone-to-PC remote control app*
+*Architecture research for: UI polish and UX refinement milestone*
 *Researched: 2026-02-27*

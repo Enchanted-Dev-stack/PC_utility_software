@@ -1,155 +1,155 @@
 # Pitfalls Research
 
-**Domain:** Local Wi-Fi phone-to-PC remote control MVP
+**Domain:** UI polish and UX refinement for an existing desktop/mobile remote-control product
 **Researched:** 2026-02-27
 **Confidence:** MEDIUM
 
 ## Critical Pitfalls
 
-### Pitfall 1: Treating LAN as trusted and skipping real pairing
+### Pitfall 1: Polishing visuals before locking interaction/state contracts
 
 **What goes wrong:**
-Any device on the same Wi-Fi can trigger PC actions because the app accepts local traffic without strong device trust.
+UI refactors (spacing, hierarchy, component variants) accidentally change behavior: wrong disabled states, stale selection, or preview/editor desync.
 
 **Why it happens:**
-Teams assume "same network" is enough security and optimize for quick demos.
+Teams treat polish as "CSS-only" work and skip a behavior baseline for existing flows.
 
 **How to avoid:**
-Require explicit pairing with a one-time code (or QR) shown on PC, issue per-device credentials, and bind every command to authenticated session identity. Keep an action allowlist by default.
+Freeze interaction contracts first: document current state machine and event outcomes for builder, preview, pairing banner, and action dispatch feedback. Add high-signal regression tests (golden behavior tests + smoke E2E) before visual refactors.
 
 **Warning signs:**
-- Fresh app install can control PC without a user-confirmed pairing step.
-- Commands still work after phone reinstall without re-pair.
-- API accepts requests from any host that reaches the port.
+- "Looks better" PRs also change runtime handler wiring.
+- QA finds regressions in pairing/action flows after typography/layout-only tickets.
+- Disabled/enabled states differ between desktop builder and mobile preview for same runtime snapshot.
 
 **Phase to address:**
-Phase 1 - Security model + pairing protocol before feature expansion.
+Phase 1 - Baseline behavior lock + design token adoption kickoff.
 
 ---
 
-### Pitfall 2: Discovery flow breaks on mobile privacy/permission rules
+### Pitfall 2: Motion that is decorative but not accessible
 
 **What goes wrong:**
-Phone cannot find PC reliably; users see "no devices found" even on same network.
+Added transitions/parallax/scale effects cause dizziness, distraction, or unusable flows for users with reduced-motion preferences.
 
 **Why it happens:**
-Teams implement mDNS/NSD but miss platform requirements (iOS local network prompts/Bonjour declarations, Android nearby Wi-Fi permissions).
+Motion specs are authored without an explicit reduced-motion policy and no OS preference hook.
 
 **How to avoid:**
-Build discovery as a state machine with explicit permission states and fallback manual connect (IP + pairing code). Add platform-specific preflight checks at app startup and telemetry for each discovery stage.
+Define a motion contract with two modes: `full` and `reduced`. Gate non-essential motion behind reduced-motion detection (`prefers-reduced-motion` on web-equivalent surfaces, OS accessibility setting on native shells), and keep essential feedback via opacity/color/state change.
 
 **Warning signs:**
-- Discovery success rate differs sharply by OS version.
-- Spike in permission-denied or SecurityException logs.
-- Support reports: "works on desktop, phone never sees host".
+- No test case for reduced motion in CI/manual QA.
+- Entry animations run on every view revisit regardless of user preference.
+- Motion is used as the only state cue (no static equivalent).
 
 **Phase to address:**
-Phase 2 - Discovery + permissions hardening, before custom dashboard UX.
+Phase 2 - Motion system implementation and accessibility guardrails.
 
 ---
 
-### Pitfall 3: No command delivery semantics (duplicates, reordering, ghost taps)
+### Pitfall 3: Non-composited animations and main-thread jank
 
 **What goes wrong:**
-Single tap triggers twice, or delayed commands fire later in the wrong context.
+Hover/press/reorder animations stutter, input feels delayed, and polish makes the app feel slower than v1.0.
 
 **Why it happens:**
-MVPs send fire-and-forget WebSocket/HTTP messages without command IDs, acknowledgments, dedupe window, or timeout policy.
+Animations are implemented on layout/paint-heavy properties (top/left/width/height/shadows everywhere), with no responsiveness budget.
 
 **How to avoid:**
-Define protocol envelope early: `command_id`, `issued_at`, `ttl_ms`, `ack_required`, `idempotency_key`. Enforce at-most-once execution per idempotency window and reject expired commands.
+Adopt animation performance rules: animate transform/opacity first, cap concurrent animated elements, and profile interaction-heavy screens. Track interaction latency (INP-style target <= 200 ms for web-equivalent surfaces) and frame stability during drag/reorder flows before merge.
 
 **Warning signs:**
-- Users report random double execution under weak Wi-Fi.
-- Server logs show repeated payloads with no dedupe behavior.
-- No measurable command success/ack ratio.
+- Lighthouse/DevTools flags non-composited animations.
+- Input feedback visibly lags during hover storms or drag reorder.
+- CPU spikes on desktop while mobile preview falls below smooth frame rate.
 
 **Phase to address:**
-Phase 1 - Protocol contract and execution semantics.
+Phase 3 - Performance hardening for interactions and animations.
 
 ---
 
-### Pitfall 4: Fragile long-lived connections (no heartbeat/reconnect policy)
+### Pitfall 4: Focus/contrast regressions introduced by restyling
 
 **What goes wrong:**
-UI shows "connected" while socket is dead; first tap after idle fails.
+Custom components look polished but keyboard focus becomes hard to see, low-contrast states blend into background, and accessibility regresses.
 
 **Why it happens:**
-Developers rely on default socket behavior and ignore idle timeouts from network infrastructure and mobile power modes.
+Default browser/OS indicators are removed (`outline: none` style patterns, subtle borders) without replacing them with compliant indicators.
 
 **How to avoid:**
-Implement heartbeat + liveness detection, explicit reconnect backoff, session resumption, and stale-connection cutover. Surface connection state in UI with last-ack timestamp.
+Create explicit state tokens for focus/hover/active/disabled with contrast requirements (non-text contrast >= 3:1 for required UI indicators). Validate keyboard path and focus visibility for all actionable controls on desktop builder and mobile surface equivalents.
 
 **Warning signs:**
-- Control fails mainly after 1-5 minutes idle.
-- Reopen app "fixes" connection.
-- No ping/pong latency metric or reconnect reason codes.
+- Focus ring only visible on some controls.
+- Hover state is visible but keyboard focus is not.
+- Designers approve static mocks but no keyboard walkthrough is run.
 
 **Phase to address:**
-Phase 3 - Transport reliability and reconnection behavior.
+Phase 2 - Interaction states system (before broad UI rollout).
 
 ---
 
-### Pitfall 5: OS boundary failures on the PC side (firewall/UIPI/privilege mismatches)
+### Pitfall 5: Inconsistent component semantics across desktop builder and mobile dashboard
 
 **What goes wrong:**
-Some actions silently fail (especially input simulation or app control) despite successful transport.
+Same action tile/state is presented with different labels, icon meaning, or status affordances across surfaces; users lose trust in preview fidelity.
 
 **Why it happens:**
-Control-plane implementation ignores Windows firewall rules and desktop integrity boundaries (UIPI), so "command accepted" != "action executed".
+Desktop and mobile surfaces evolve separately, with local naming and style overrides instead of shared semantic tokens and component contracts.
 
 **How to avoid:**
-Add install-time firewall rule checks, privilege diagnostics, and per-action capability checks before execution. Return structured execution result codes (`executed`, `blocked_by_uipi`, `blocked_by_firewall`, etc.).
+Define a cross-surface component contract for each shared primitive (tile, section header, status badge, action feedback). Enforce consistent naming/identification and shared token sources; only allow platform-specific divergence when documented.
 
 **Warning signs:**
-- High rate of "sent" without corresponding "executed" events.
-- Works only when app runs elevated.
-- Users report media keys work but keyboard/mouse injection doesn't.
+- "Same" tile has different status wording or icon meaning on desktop vs mobile.
+- Preview parity bugs are treated as cosmetic, not correctness bugs.
+- Components are duplicated per surface rather than derived from shared specs.
 
 **Phase to address:**
-Phase 2 - PC agent bootstrap and environment validation.
+Phase 1 - Shared design language and cross-surface contract definition.
 
 ---
 
-### Pitfall 6: Action engine is over-permissive too early
+### Pitfall 6: Layout shift and unstable feedback during async updates
 
 **What goes wrong:**
-MVP exposes broad command primitives (arbitrary shell/script execution) that create severe abuse risk and unstable UX.
+Toasts, loading placeholders, or dynamic content insertion shift controls mid-interaction, causing mis-taps/mis-clicks and perceived instability.
 
 **Why it happens:**
-Teams optimize for flexibility over safety before they have trust, auditability, and policy controls.
+Polish adds dynamic UI elements without reserved space, stable sizing, or lifecycle rules for async status UI.
 
 **How to avoid:**
-Ship v1 with narrow, typed actions only (open approved app, open URL from allowlist, media controls). Keep "arbitrary command" behind later phase with explicit policy, prompts, and audit trail.
+Reserve layout regions for dynamic feedback (toast rail, status rows, skeleton dimensions), prefer transform/opacity transitions, and set visual stability checks (CLS-style threshold <= 0.1 for web-equivalent surfaces). Treat unexpected shift as release-blocking.
 
 **Warning signs:**
-- Feature requests push plugin/script support before core reliability metrics are green.
-- No per-action policy/approval model exists.
-- Security review cannot explain blast radius of one compromised phone.
+- Buttons move after load/refresh.
+- Users report tapping one action and triggering another.
+- Preview surface jumps when runtime status updates arrive.
 
 **Phase to address:**
-Phase 1 - MVP scope guardrails and action policy.
+Phase 3 - Visual stability and async rendering hardening.
 
 ---
 
-### Pitfall 7: No observability for control loop quality
+### Pitfall 7: No visual regression net for polish work
 
 **What goes wrong:**
-Team cannot distinguish discovery failures vs transport failures vs execution failures; roadmap decisions become guesswork.
+Subtle spacing/typography/state regressions ship repeatedly because behavior tests pass but UI fidelity drifts.
 
 **Why it happens:**
-MVP logging is ad hoc and does not track end-to-end command lifecycle.
+Milestone is test-light on snapshots and cross-device baselines; teams rely on ad hoc manual review.
 
 **How to avoid:**
-Define event schema for every stage: discover -> pair -> connect -> send -> ack -> execute -> result. Add session replay IDs, latency percentiles, and failure taxonomy dashboards.
+Adopt deterministic visual regression tests for key routes/states (desktop builder + mobile dashboard + live preview parity screens). Lock screenshot environment in CI, maintain baseline snapshots intentionally, and gate merges on approved diffs.
 
 **Warning signs:**
-- Bugs described as "sometimes doesn't work" with no actionable traces.
-- No P95 tap-to-effect latency metric.
-- Fixes regress unrelated areas unnoticed.
+- Frequent "tiny" UI bugfixes after each release.
+- Screenshots differ by environment unexpectedly.
+- Teams cannot answer whether hover/focus/disabled visuals changed between builds.
 
 **Phase to address:**
-Phase 3 - Reliability instrumentation before UI polish phase.
+Phase 4 - QA and release readiness gate for polish.
 
 ---
 
@@ -159,63 +159,61 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Hardcoded host/port + no discovery fallback | Faster initial demo | High support burden across routers/OS versions | Prototype only (not MVP release) |
-| Single shared auth token for all phones | Easy session handling | No device revocation, weak auditability | Never |
-| Fire-and-forget commands | Minimal protocol complexity | Ghost taps, duplicate execution, no trust in system | Never |
-| Skip firewall/privilege diagnostics | Less installer work | "Works on my machine" failures in production | Never |
-| Add arbitrary script action in v1 | Power-user appeal | Large security blast radius and policy debt | Never in local-control MVP |
+| Surface-specific one-off CSS overrides | Fast visual wins | Cross-surface drift and unmaintainable style cascade | Prototype spikes only; never for milestone completion |
+| Adding animation directly in feature components | Quick demos | Inconsistent motion language and hard-to-disable effects | Only for temporary experiments behind flags |
+| Removing default focus styles without replacement | Cleaner screenshots | Keyboard accessibility failure and usability regressions | Never |
+| Skipping reduced-motion mode | Less implementation effort | Accessibility debt and user discomfort | Never |
+| No visual baseline tests in CI | Faster PR cycle | High post-release polish churn | Never for a polish milestone |
 
 ## Integration Gotchas
 
-Common mistakes when connecting to external services.
+Common mistakes when connecting existing systems during polish.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| iOS local networking (Bonjour/local LAN access) | Triggering permission too early or missing plist/service declarations | Request at feature entry, declare required services/usage strings, handle denied state with manual connect fallback |
-| Android Wi-Fi/nearby permissions | Assuming pre-Android-13 flow works everywhere | Handle Android version branches, request `NEARBY_WIFI_DEVICES` (and location where required), instrument permission outcomes |
-| mDNS/NSD discovery | Assuming service names/ports are static and globally unique | Accept service-name conflict renames, publish runtime port, resolve service before connect |
-| Windows Defender Firewall | Relying on first-run prompts and local admin user behavior | Stage explicit inbound rules and verify effective policy during setup |
-| Win32 input injection | Assuming accepted command means input reached target app | Detect and report UIPI/integrity blocking; align agent privilege with controlled target scope |
+| Desktop builder state -> live preview | Recomputing view state independently in each surface | Drive both from shared runtime snapshot/version and map to surface-specific presentation only |
+| Design tokens -> code | Ad hoc token naming by team/surface | Single token namespace with semantic tiers (global, component, state) and documented aliasing |
+| Animation library -> app state | Triggering animation from scattered business events | Centralize motion triggers in UI state layer with clear enter/exit/update semantics |
+| Visual testing -> CI | Running screenshots on inconsistent hosts | Pin browser/OS/project settings and generate baselines in controlled environment |
 
 ## Performance Traps
 
-Patterns that work at small scale but fail as usage grows.
+Patterns that work in demos but fail under real usage.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| No backpressure on command queue | Latency spikes, stale actions execute late | Per-session queue caps, TTL expiry, drop policy for stale commands | Noticeable even at 1-5 concurrent sessions under weak Wi-Fi |
-| Aggressive polling for discovery/health | Battery drain on phone, noisy network | Event-driven discovery + bounded heartbeat intervals | Early, especially on mobile battery saver modes |
-| Synchronous action execution in one thread | One slow app launch blocks all commands | Isolate transport loop from executor pool, enforce per-action timeout | At moderate action diversity (media + app launch + URL) |
+| Animating layout-affecting properties | Stutter during hover/reorder | Prefer compositor-friendly properties; profile traces in PR | Immediately on low/mid-tier devices |
+| Excessive simultaneous micro-animations | "Busy" UI and delayed input feedback | Motion budget per screen; cap concurrent animations | At moderate component density |
+| Async UI inserted without reserved space | Controls jump mid-interaction | Reserve space/skeleton sizes and stabilize feedback regions | As soon as live updates or toasts are frequent |
 
 ## Security Mistakes
 
-Domain-specific security issues beyond general web security.
+Security-adjacent mistakes specific to polish rollout.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Trusting private subnet by source IP only | Any LAN peer can send control commands | Authenticated pairing + per-device credentials + command signing/session auth |
-| Allowing broad CORS/local endpoint exposure | Browser-origin CSRF/DNS-rebinding-style control attempts | Strict origin policy, CSRF-resistant command channel, no unauthenticated state-changing endpoints |
-| Storing long-lived secret in plaintext config | Credential theft from local machine/profile backups | Encrypt at rest with OS keystore/DPAPI and rotate on re-pair |
+| Trusting polished status UI over runtime truth | Users think action executed when it failed | Keep success/error states sourced from runtime outcome codes, not optimistic visual assumptions |
+| Hiding important risk cues in subtle styling | Users miss trust/pairing warnings | Preserve high-contrast trust/security indicators as non-optional states in design system |
 
 ## UX Pitfalls
 
-Common user experience mistakes in this domain.
+Common UX mistakes in UI polish milestones.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| "Connected" status based only on socket open | False confidence; first tap fails | Show health as last successful ack/execution timestamp |
-| Generic failure toasts ("Action failed") | Users cannot self-recover | Actionable errors: "Allow Local Network", "Open firewall", "Re-pair device" |
-| Pairing flow buried after dashboard setup | Confusing first-run; low completion | Pair first, then unlock editor/live preview |
+| Prioritizing motion spectacle over clarity | Slower task completion and confusion | Use motion to clarify cause/effect, not decorate every interaction |
+| Inconsistent action labels/icons across surfaces | Users distrust preview and mis-trigger actions | Enforce consistent identification for same functionality |
+| Hover-focused designs without keyboard parity | Non-mouse users lose operability confidence | Design and test state parity: hover, focus, active, disabled |
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Pairing:** Device appears in list but cannot be individually revoked - verify per-device identity and revoke flow.
-- [ ] **Connectivity:** Manual test works once - verify reconnect after idle, Wi-Fi switch, and app background/foreground.
-- [ ] **Action execution:** Command returns 200/ACK - verify OS-level execution outcome code is persisted and visible.
-- [ ] **Security:** LAN-only works in home setup - verify behavior on hostile LAN simulation and blocked-origin web requests.
-- [ ] **Reliability:** Demo feels instant - verify P50/P95 tap-to-effect latency and duplicate-rate under packet loss.
+- [ ] **State fidelity:** Polished components still map 1:1 to existing runtime states - verify with state matrix (desktop + mobile + preview).
+- [ ] **Motion accessibility:** Reduced-motion mode suppresses non-essential animations - verify at OS preference level.
+- [ ] **Performance:** Interaction latency and animation smoothness stay within targets under typical load - verify with profiled traces.
+- [ ] **Focus/contrast:** Keyboard focus and key state indicators remain visible - verify against WCAG-based checks.
+- [ ] **Visual regression:** Snapshot diffs are reviewed and intentional - verify in CI before release.
 
 ## Recovery Strategies
 
@@ -223,10 +221,10 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Weak pairing/auth model shipped | HIGH | Freeze feature work, rotate all credentials, force re-pair, add auth gate in protocol layer |
-| Discovery broken on one OS family | MEDIUM | Ship manual-connect fallback, hotfix permissions UX, add discovery stage telemetry |
-| Duplicate/ghost command execution | HIGH | Introduce idempotency keys and dedupe store, invalidate stale queued commands, add command audit view |
-| Silent OS execution failures on Windows | MEDIUM | Add diagnostics wizard, expose execution reason codes, patch installer for firewall/privilege checks |
+| Behavior regressions after visual refactor | HIGH | Revert to behavior-safe branch, re-apply polish behind state-contract tests, release in smaller slices |
+| Motion causes accessibility complaints | MEDIUM | Hotfix reduced-motion defaults, disable offending transitions via central motion flags, add accessibility regression tests |
+| Widespread visual drift across surfaces | MEDIUM | Introduce token mapping freeze, run parity audit screen-by-screen, remove one-off overrides and backfill component contracts |
+| UI jank introduced by animations | MEDIUM | Profile traces, replace layout/paint-heavy transitions, set per-screen motion budget and block non-composited animations |
 
 ## Pitfall-to-Phase Mapping
 
@@ -234,27 +232,27 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| LAN-trust/no real pairing | Phase 1 - Security model + pairing protocol | Unauthorized unpaired device cannot execute any action in test LAN |
-| Discovery permission failures | Phase 2 - Discovery and platform permissions | Device discovery success by OS/version tracked and > target threshold |
-| Duplicate/ghost commands | Phase 1 - Protocol semantics | Idempotency tests pass under retry and packet loss simulation |
-| Dead sockets after idle | Phase 3 - Transport reliability | Heartbeat/reconnect test suite passes idle + network flap scenarios |
-| Windows firewall/UIPI execution gaps | Phase 2 - PC agent environment checks | Installer diagnostics detect + remediate blocked conditions |
-| Over-permissive action surface | Phase 1 - Scope and policy guardrails | Only typed allowlisted actions exposed in MVP API |
-| Missing observability | Phase 3 - Telemetry and diagnostics | End-to-end lifecycle trace available for every failed command |
+| Polishing before interaction contracts | Phase 1 - Behavior baseline + shared design contract | Existing behavior smoke/E2E suite passes before and after refactor |
+| Decorative motion without accessibility | Phase 2 - Motion system + reduced-motion compliance | Reduced-motion test pass on all target surfaces |
+| Non-composited animation jank | Phase 3 - Performance hardening | Performance audit has no critical non-composited animation findings |
+| Focus/contrast regressions | Phase 2 - State styling and accessibility checks | Keyboard walkthrough and contrast checks pass for all actionable controls |
+| Cross-surface semantic drift | Phase 1 - Cross-surface component semantics | Desktop/mobile/live-preview parity checklist passes |
+| Layout shifts from async polish | Phase 3 - Visual stability hardening | CLS-style visual stability and mis-click tests pass in CI |
+| Missing visual regression net | Phase 4 - QA/release gate | Snapshot baselines exist and diffs require explicit approval |
 
 ## Sources
 
-- Apple WWDC20: Support local network privacy in your app (local network permission behavior, Info.plist keys, permission timing) - https://developer.apple.com/videos/play/wwdc2020/10110/ (HIGH)
-- Android docs: Request permission to access nearby Wi-Fi devices (`NEARBY_WIFI_DEVICES`, runtime requirements) - https://developer.android.google.cn/develop/connectivity/wifi/wifi-permissions?hl=en (HIGH)
-- Android docs: Use network service discovery (NSD caveats: service-name conflicts, dynamic ports, lifecycle handling) - https://developer.android.google.cn/develop/connectivity/wifi/use-nsd?hl=en (HIGH)
-- Android docs: Optimize for Doze and App Standby (network deferral/background limits, testing commands) - https://developer.android.google.cn/training/monitoring-device-state/doze-standby?hl=en (HIGH)
-- Microsoft Learn: Windows Firewall rules and automatic rule-creation behavior - https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules (HIGH)
-- Microsoft Learn: `SendInput` and UIPI limitation details - https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput (HIGH)
-- RFC 6762 (mDNS link-local semantics, conflict handling) - https://datatracker.ietf.org/doc/html/rfc6762 (HIGH)
-- websockets docs: keepalive/heartbeat rationale and failure modes - https://websockets.readthedocs.io/en/stable/topics/keepalive.html (MEDIUM)
-- Chrome Developers: Private Network Access preflights and CSRF risk to private-network devices - https://developer.chrome.com/blog/private-network-access-preflight (MEDIUM)
-- OWASP IoT project (ecosystem-level insecure defaults and weak auth patterns; older but still relevant framing) - https://owasp.org/www-project-internet-of-things/ (LOW)
+- W3C WCAG 2.2 Understanding SC 2.3.3 (Animation from Interactions), updated 2025-09-16: https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html (HIGH)
+- MDN `prefers-reduced-motion`, last modified 2026-01-08: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion (HIGH)
+- W3C WCAG 2.2 Understanding SC 2.4.7 (Focus Visible), updated 2025-09-17: https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html (HIGH)
+- W3C WCAG 2.2 Understanding SC 1.4.11 (Non-text Contrast): https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html (HIGH)
+- W3C WCAG 2.2 Understanding SC 3.2.4 (Consistent Identification), updated 2025-09-16: https://www.w3.org/WAI/WCAG22/Understanding/consistent-identification (HIGH)
+- web.dev Optimize INP, last updated 2025-09-02: https://web.dev/articles/optimize-inp (MEDIUM)
+- web.dev CLS overview, last updated 2023-04-12: https://web.dev/articles/cls (MEDIUM)
+- Chrome for Developers Lighthouse: Avoid non-composited animations, last updated 2024-12-08: https://developer.chrome.com/docs/lighthouse/performance/non-composited-animations (MEDIUM)
+- Playwright visual comparisons docs (snapshot-based UI regression): https://playwright.dev/docs/test-snapshots (MEDIUM)
+- Design Tokens Community Group Format Module 2025.10 (preview draft, not standard): https://www.designtokens.org/TR/2025.10/format/ (LOW)
 
 ---
-*Pitfalls research for: local Wi-Fi phone-to-PC remote control MVP*
+*Pitfalls research for: UI polish and UX refinement milestone (existing product surfaces)*
 *Researched: 2026-02-27*

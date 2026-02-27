@@ -1,149 +1,165 @@
 # Project Research Summary
 
 **Project:** PC Remote Control Studio
-**Domain:** Local Wi-Fi phone-to-PC remote control (desktop editor + mobile controller)
+**Domain:** UI polish and UX refinement for desktop builder + live preview + mobile dashboard
 **Researched:** 2026-02-27
-**Confidence:** MEDIUM
+**Confidence:** MEDIUM-HIGH
 
 ## Executive Summary
 
-This product is a local-first control system where the PC host is authoritative and both the mobile app and desktop panel act as clients. Strong implementations in this category do not start from UI customization; they start from a deterministic control loop: trusted pairing, authenticated command transport, explicit acknowledgement stages, and typed action execution on the PC. Research converges on a LAN-first architecture with mDNS discovery plus manual fallback, because that delivers fast setup without expanding to internet-grade threat models too early.
+This milestone is not a platform rewrite; it is a quality pass on an existing local-first remote-control product that already has deterministic runtime behavior, dashboard CRUD, and live preview architecture. The research is consistent across all tracks: high-quality teams in this situation preserve runtime contracts and focus polish work in UI layers only. The product should feel like one system across desktop and mobile, which requires a shared token language, complete interaction-state coverage, and parity checks between builder preview and mobile rendering.
 
-The recommended approach is a Rust-first runtime (Tauri + Rust services + SQLite) with thin React/Expo clients sharing typed protocol contracts. The MVP should prioritize a safe, reliable action plane (open app, open URL, media/system controls), then layer the desktop tile builder and live mobile preview as the core differentiator. This keeps the value loop intact: user taps tile -> host executes deterministically -> user sees stage/result feedback.
+The recommended approach is token-first and contract-first. Introduce a dedicated `design-tokens` module (Style Dictionary), feed desktop via Tailwind v4 and mobile via NativeWind-compatible outputs, and standardize component state semantics through a shared primitive/variant layer (CVA + `clsx` + `tailwind-merge`). Roll out state matrix coverage before adding richer motion, then harden with Storybook scenarios and Playwright + axe quality gates. This gives visual consistency without risking behavior regressions in connectivity, trust, action execution, or layout versioning.
 
-Key risk is false confidence from "works on my network" behavior: weak pairing, broken mobile discovery permissions, dead sockets after idle, and OS-level execution failures can all masquerade as random bugs. Mitigation is explicit: pair-first security model, command IDs + ACK semantics + idempotency windows, connection liveness/reconnect policy, host diagnostics (firewall/UIPI), and end-to-end observability for discover -> pair -> execute lifecycle.
+The main risk is “polish drift”: teams accidentally changing runtime behavior while restyling, or shipping desktop-only visual improvements that break preview/mobile fidelity and accessibility. Mitigation is clear: freeze interaction contracts first, derive visual semantics from runtime snapshots (never the reverse), enforce reduced-motion and focus/contrast guardrails, and gate merges with deterministic visual regression checks in pinned CI environments.
 
 ## Key Findings
 
 ### Recommended Stack
 
-Stack research supports a modern polyglot baseline optimized for low-latency local execution and MVP velocity: Rust runtime + Tauri shell on desktop, React/Vite panel, Expo mobile client, WebSocket transport, and SQLite persistence. Version pinning matters for stability (Expo 55/RN 0.83/React 19.2 lockstep, Tauri CLI/API parity, Rust toolchain pin).
+The stack is purpose-built for cross-surface consistency without changing runtime architecture: build-time tokens, utility-driven styling on both surfaces, one animation stack per surface, and visual QA automation.
 
 **Core technologies:**
-- **Rust 1.93 (stable):** PC runtime, networking, execution, crypto - best safety/performance fit for OS-level control code.
-- **Tauri 2.10:** Desktop shell/native bridge - smaller footprint and stronger desktop security posture than Electron-first v1.
-- **React 19 + Vite 7:** Desktop panel UI - fast iteration for tile editor and live preview tooling.
-- **Expo SDK 55 (RN 0.83):** Mobile controller - fastest path to polished cross-platform mobile UX.
-- **WebSocket + Tokio stack:** Realtime command/event/ACK path - low complexity and sufficient LAN performance for MVP.
-- **SQLite (WAL):** Local source of truth for tiles, trusted devices, and audit logs.
+- **Style Dictionary 5.3.2:** Token pipeline and multi-platform output — single source of truth for desktop/mobile visual semantics.
+- **Tailwind CSS 4.2.1:** Desktop token consumption via `@theme` variables — fast, explicit utility system for polish work.
+- **NativeWind 4.2.2:** Mobile styling with Tailwind-compatible semantics — keeps mobile aligned with desktop naming and states.
+- **Motion 12.34.3 + Reanimated 4.2.2:** Purposeful interaction and transition layer — smooth but controllable motion with reduced-motion paths.
+- **CVA 0.7.1 + clsx 2.1.1 + tailwind-merge 3.5.0:** Variant contract layer — prevents ad hoc class/state drift.
+- **Storybook 10.2.13 + Playwright 1.58.2 + axe-core 4.11.1:** Visual and accessibility quality gate — catches parity and UI regressions before release.
+
+Critical version constraints: Tailwind v4 + NativeWind v4 alignment, Reanimated installed via Expo SDK 55 tooling, and Storybook React/RN-web frameworks on Vite >= 5.
 
 ### Expected Features
 
-The product category has clear table stakes: reliable same-network setup, trusted pairing, low-latency control actions, and a host service that survives reconnects. Differentiation should come from the desktop dashboard builder with accurate live mobile preview and eventually richer visual customization.
+Feature research points to a polish-first MVP centered on consistency, trust, and accessibility rather than net-new workflow complexity.
 
 **Must have (table stakes):**
-- Wi-Fi discovery + trusted pairing + authenticated sessions.
-- Host service + resilient connection loop + reconnect handling.
-- Tile CRUD and curated action execution (app, URL, media/system basics).
-- Basic action/event logging and success/failure feedback.
+- Shared design tokens across desktop builder and mobile dashboard.
+- Full interaction-state matrix (`default`, `hover`, `focus`, `active`, `disabled`, `loading`) mapped to runtime truth.
+- Preview-to-mobile parity checks tied to `layoutVersion` and shared snapshot semantics.
+- Deterministic feedback surfaces for save/reorder/pairing/action outcomes.
+- Accessibility baseline: visible focus, contrast compliance, touch target minimums, status semantics, reduced-motion policy.
 
 **Should have (competitive):**
-- Desktop builder with live mobile preview (primary differentiator).
-- Reliability upgrades: delivery states, retries, deterministic logs.
-- Profile/page templates and quick context switching.
+- Builder interaction-fidelity scorecard (contrast/focus/target/state/parity checks).
+- Runtime-lifecycle micro-interactions (`queued -> running -> terminal`) with no optimistic fake success.
+- Context-aware polish presets (Work/Media/Gaming) and robust empty/error state kit.
 
 **Defer (v2+):**
-- WAN/internet remote control.
-- Arbitrary scripts/plugins (until permissioned/signed model exists).
-- Multi-device concurrent sessions with role controls.
+- Screenshot overlay visual diff tooling across devices.
+- Adaptive personalization of density/motion from usage telemetry.
 
 ### Architecture Approach
 
-Architecture research strongly favors a PC-hosted monolith with thin clients for MVP: discovery, pairing/auth, realtime gateway, command router, action registry/executor, and audit/persistence services in one local runtime boundary. The key pattern is protocol discipline: every command carries correlation identity and progresses through explicit ACK stages, while only allowlisted typed actions reach execution.
+Architecture guidance is explicit: keep `DesktopConnectivityRuntime` and snapshot contracts stable, and add polish semantics only in UI projection/model layers. New work is concentrated in `packages/design-tokens`, `apps/*/ui/primitives`, and `tests/ui/visual`, while `DashboardBuilderModel`, `DashboardLivePreviewModel`, and `MobileDashboardModel` are extended with derived style metadata only.
 
 **Major components:**
-1. **Discovery + Pairing/Auth services** - establish trust, credential issuance, and secure session gates.
-2. **Realtime Gateway + Command Router** - low-latency bidirectional protocol with idempotency and ACK semantics.
-3. **Action Registry/Executor + Audit Logger** - validate typed actions, execute safely, persist deterministic outcomes.
+1. **Runtime core (existing, unchanged behavior):** authoritative source for connectivity/trust/action/layout snapshots.
+2. **UI model + handler layer (modified):** derives visual semantics from runtime snapshots while preserving runtime-owned mutations.
+3. **Design token module (new):** generates desktop/mobile token artifacts from one semantic namespace.
+4. **UI primitives/variants layer (new):** shared state contracts consumed by builder, preview, and mobile dashboard.
+5. **Visual QA harness (new):** Storybook state matrix + Playwright/axe parity and accessibility gating.
 
 ### Critical Pitfalls
 
-1. **Skipping real pairing on LAN** - require one-time code/QR pairing, per-device credentials, and authenticated command sessions only.
-2. **Missing command semantics** - enforce `command_id`, TTL, dedupe window, staged ACKs, and terminal result states.
-3. **Discovery permission failures on mobile** - implement OS-specific permission state machine plus manual IP fallback.
-4. **OS boundary failures on PC** - add firewall/UIPI diagnostics and structured execution reason codes.
-5. **No end-to-end observability** - instrument discover -> pair -> connect -> ack -> execute with latency/failure taxonomy.
+1. **Polishing before behavior contracts are frozen** — lock and test current interaction/state contracts before visual refactors.
+2. **Decorative motion without accessibility fallback** — enforce `full` vs `reduced` motion modes and never use motion as the only state cue.
+3. **Non-composited animation jank** — prefer transform/opacity, cap concurrent effects, and profile interaction-heavy screens.
+4. **Focus/contrast regressions from restyling** — ship explicit focus/state tokens and verify keyboard/touch accessibility in QA gates.
+5. **Desktop/mobile semantic drift** — enforce shared naming/token contracts and treat preview parity issues as correctness bugs.
 
 ## Implications for Roadmap
 
-Based on dependencies, risk, and architecture boundaries, use a 4-phase roadmap.
+Based on the combined research, use a 5-phase roadmap that mirrors architecture dependencies and pitfall prevention.
 
-### Phase 1: Secure Command Core
-**Rationale:** Everything else depends on trusted, deterministic command execution.
-**Delivers:** Pairing/auth model, device identity persistence, WebSocket command protocol with ACK/idempotency, typed allowlisted actions, baseline audit events.
-**Addresses:** P1 features for pairing, action execution, and basic reliability feedback.
-**Avoids:** LAN-trust auth failures, ghost taps/duplicate execution, over-permissive action surface.
+### Phase 1: Behavior Lock + Token Foundation
+**Rationale:** Prevent regressions first, then establish shared design language.
+**Delivers:** Interaction contract baseline tests, `design-tokens` module, semantic token taxonomy, initial desktop/mobile token outputs.
+**Addresses:** Shared token system, cross-surface consistency prerequisites.
+**Avoids:** Pitfall 1 (behavior drift) and Pitfall 5 (semantic divergence).
 
-### Phase 2: Host Hardening + Setup Reliability
-**Rationale:** After core loop works, remove real-world setup/execution blockers.
-**Delivers:** mDNS discovery + manual fallback, mobile permission flows, Windows firewall/UIPI diagnostics, reconnect-safe host lifecycle.
-**Uses:** mdns-sd/react-native-zeroconf, SQLite state, runtime discovery/pairing modules.
-**Implements:** DiscoverySvc, Pairing/AuthSvc hardening, execution environment validation.
+### Phase 2: State Matrix + Primitive Rollout
+**Rationale:** State clarity must precede animation and broad restyling.
+**Delivers:** Desktop/mobile primitive wrappers, full interaction-state coverage for high-impact surfaces (connection banner, history rows, builder controls), accessibility state tokens.
+**Uses:** Tailwind/NativeWind + CVA stack from STACK.md.
+**Implements:** `ui-primitives` boundary and runtime-immutable view semantics.
+**Avoids:** Pitfall 4 (focus/contrast regressions).
 
-### Phase 3: Product Workflow (Editor + Mobile Runtime)
-**Rationale:** Build the user-facing value layer on top of proven transport/security.
-**Delivers:** Desktop tile CRUD + publish versioning, mobile layout consumption, live preview sync, actionable status UI, richer telemetry dashboards.
-**Addresses:** Core value proposition and primary differentiator.
-**Avoids:** UI-first anti-pattern where polished screens hide fragile control behavior.
+### Phase 3: Preview-Mobile Parity + Deterministic Feedback Polish
+**Rationale:** Core value is trustworthy preview fidelity and runtime-aligned UI feedback.
+**Delivers:** Matching style semantics in `DashboardLivePreviewModel` and `MobileDashboardModel`, parity assertions tied to `layoutVersion`, deterministic status/outcome mapping.
+**Addresses:** P1 parity and feedback features.
+**Avoids:** Pitfall 5 (parity drift) and optimistic UI anti-feature risk.
 
-### Phase 4: Differentiation Expansion (v1.x)
-**Rationale:** Extend only after reliability metrics are green.
-**Delivers:** Visual theming/icon studio, profile templates/switching, safe macro chains (no arbitrary scripting).
-**Addresses:** P2 competitive features.
-**Avoids:** Premature complexity from plugins/WAN before trust and observability maturity.
+### Phase 4: Motion + Performance Hardening
+**Rationale:** Add animation only after state/parity contracts are stable.
+**Delivers:** Motion token application for key transitions, reduced-motion compliance, interaction performance budgets, layout-shift stability checks for async surfaces.
+**Uses:** Motion + Reanimated with constrained motion policy.
+**Avoids:** Pitfall 2 (motion accessibility), Pitfall 3 (jank), Pitfall 6 (layout shift instability).
+
+### Phase 5: Visual QA Gate + v1.x Enhancements
+**Rationale:** Lock quality before scale and layer in selective differentiators.
+**Delivers:** Storybook state catalog, Playwright screenshot baselines, axe audits in CI; optional scorecard/micro-interactions/presets once baseline is green.
+**Implements:** visual-regression harness and release gates.
+**Avoids:** Pitfall 7 (no regression net).
 
 ### Phase Ordering Rationale
 
-- Pairing/auth and command semantics are hard prerequisites for every user-visible feature.
-- Discovery/platform hardening must precede broad user testing to avoid false negative product feedback.
-- Editor/live preview should ship after deterministic execution so customization is trustworthy, not cosmetic.
-- Deferred capabilities (WAN/plugins/multi-device) require a stronger security and operations posture than MVP.
+- Dependencies are strict: tokens -> state matrix -> parity feedback -> motion -> QA hardening.
+- Architecture is protected by keeping runtime immutable and confining polish to projection/primitives/tests.
+- Pitfalls are neutralized in phase order instead of patched later (especially behavior drift, parity drift, and accessibility regressions).
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 2:** Mobile LAN permission nuances (iOS/Android) and Windows firewall/UIPI behavior can vary by OS/version.
-- **Phase 4:** Safe macro policy model and extensibility guardrails need dedicated threat-model validation.
+- **Phase 3:** Preview/mobile parity assertions and screenshot strategy need concrete tooling decisions per renderer setup.
+- **Phase 4:** Motion performance budgets and reduced-motion behavior need platform-specific validation details.
+- **Phase 5:** Deterministic visual baseline strategy (fonts/OS/browser pinning) may need CI environment research.
 
 Phases with standard patterns (can likely skip extra research-phase):
-- **Phase 1:** Pairing + ACK/idempotency protocol patterns are well documented and consistent across sources.
-- **Phase 3:** CRUD/state-sync/editor workflows follow established app architecture patterns once core protocol is fixed.
+- **Phase 1:** Token pipeline setup and semantic namespace design are well documented and low novelty.
+- **Phase 2:** Interaction-state primitive rollout follows mature component-system patterns.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM-HIGH | Strong official docs for Tauri/Expo/Node/Rust; some crate/package version points rely on registry metadata. |
-| Features | MEDIUM | Competitor analysis is directionally strong, but mostly from product pages/store listings vs hard usage telemetry. |
-| Architecture | MEDIUM-HIGH | Core patterns grounded in RFCs and proven command/ack design; implementation details still need project-level validation. |
-| Pitfalls | HIGH | Risks map directly to platform/vendor docs (Apple/Android/Microsoft/RFC) with clear mitigation patterns. |
+| Stack | MEDIUM-HIGH | Strong official docs and concrete versioning, with minor uncertainty around exact in-repo renderer entrypoints. |
+| Features | MEDIUM | Priorities are clear and internally consistent; differentiator sizing still needs product tradeoff validation. |
+| Architecture | MEDIUM-HIGH | Grounded in existing project boundaries and explicit dependency order; integration details are actionable. |
+| Pitfalls | MEDIUM-HIGH | Risks are well documented by WCAG/MDN/web performance guidance and map cleanly to phase controls. |
 
 **Overall confidence:** MEDIUM-HIGH
 
 ### Gaps to Address
 
-- **Cross-platform execution parity:** Validate action executor behavior on each target OS beyond Windows assumptions; add matrix tests in planning.
-- **Mobile background behavior:** Confirm reconnect/heartbeat strategy under Doze/iOS background limits with device-level soak tests.
-- **Crypto/session design depth:** If app-level E2E channel encryption is adopted in MVP, run a focused protocol review before implementation lock.
-- **Performance thresholds:** Define acceptance SLOs (P50/P95 tap-to-effect, duplicate rate, discovery success by OS) before Phase 3.
+- **Renderer integration specifics:** Confirm exact desktop/mobile render entrypoints and Storybook wiring before locking task breakdown.
+- **Visual baseline determinism:** Validate CI font/OS/browser pinning strategy before adopting screenshot gates as merge blockers.
+- **Parity acceptance metrics:** Define concrete pass/fail thresholds for preview-vs-mobile parity (pixel tolerance, state coverage, route set).
+- **Motion budget thresholds:** Set measurable limits (latency/frame stability/concurrent animations) per critical interaction flow.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Tauri 2 docs and prerequisites - architecture and tooling guidance.
-- Expo SDK docs + React Native version docs - compatibility matrix and platform runtime constraints.
-- RFC 6455 (WebSocket), RFC 6762/6763 (mDNS/DNS-SD) - transport and discovery standards.
-- SQLite WAL docs - local persistence concurrency model.
-- Apple/Android/Microsoft official docs - LAN permissions, NSD caveats, firewall rules, UIPI limits.
+- `C:/Users/user/pc-remote-control-app/.planning/research/STACK.md` — recommended stack, versions, integration constraints.
+- `C:/Users/user/pc-remote-control-app/.planning/research/FEATURES.md` — table stakes, differentiators, anti-features, prioritization.
+- `C:/Users/user/pc-remote-control-app/.planning/research/ARCHITECTURE.md` — component boundaries, build order, anti-patterns.
+- `C:/Users/user/pc-remote-control-app/.planning/research/PITFALLS.md` — phase-mapped risks and prevention strategies.
+- https://tailwindcss.com/docs/theme — token-driven theme variables.
+- https://styledictionary.com/getting-started/installation/ — multi-platform token generation.
+- https://storybook.js.org/docs/get-started/frameworks/react-vite — Storybook framework patterns.
+- https://playwright.dev/docs/test-snapshots — visual baseline testing patterns.
+- https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html — contrast requirements.
+- https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html — focus visibility requirements.
 
 ### Secondary (MEDIUM confidence)
-- crates.io and npm registry metadata - concrete package/version baselines.
-- Socket.IO reliability docs - delivery guarantees and state recovery reference patterns.
-- Electron security checklist - desktop shell hardening parallels.
-- Competitor listings/sites (Unified Remote, KDE Connect, Remote Mouse, Macro Deck, Touch Portal) - market expectation signals.
+- https://www.nativewind.dev — Tailwind-style RN workflow for cross-surface parity.
+- https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started/ — native animation constraints and setup.
+- https://web.dev/articles/optimize-inp — interaction latency guidance.
+- https://developer.chrome.com/docs/lighthouse/performance/non-composited-animations — animation performance pitfalls.
 
 ### Tertiary (LOW confidence)
-- OWASP IoT project framing - useful threat-model context but broad and less specific to this exact app class.
+- https://www.designtokens.org/TR/2025.10/format/ — DTCG draft direction (helpful, but still draft-level authority).
 
 ---
 *Research completed: 2026-02-27*
