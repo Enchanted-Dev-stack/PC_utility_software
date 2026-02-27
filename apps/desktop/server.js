@@ -302,6 +302,26 @@ function launchDetached(command, args) {
 }
 
 async function executeDesktopAction(actionType, actionValue) {
+  const runPowerShell = (script) =>
+    launchDetached("powershell.exe", [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      script,
+    ]);
+
+  const sendMediaKey = (keyName) => {
+    if (process.platform !== "win32") {
+      return { ok: false, detail: "unsupported_platform" };
+    }
+    return runPowerShell(
+      `$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('{${keyName}}')`,
+    );
+  };
+
   if (actionType === "open_url") {
     const normalized = normalizeHttpUrl(actionValue);
     if (!normalized) {
@@ -331,18 +351,62 @@ async function executeDesktopAction(actionType, actionValue) {
   }
 
   if (actionType === "media_play_pause") {
+    return sendMediaKey("MEDIA_PLAY_PAUSE");
+  }
+
+  if (actionType === "media_next") {
+    return sendMediaKey("MEDIA_NEXT_TRACK");
+  }
+
+  if (actionType === "media_previous") {
+    return sendMediaKey("MEDIA_PREV_TRACK");
+  }
+
+  if (actionType === "volume_up") {
+    return sendMediaKey("VOLUME_UP");
+  }
+
+  if (actionType === "volume_down") {
+    return sendMediaKey("VOLUME_DOWN");
+  }
+
+  if (actionType === "volume_mute") {
+    return sendMediaKey("VOLUME_MUTE");
+  }
+
+  if (actionType === "system_lock") {
     if (process.platform !== "win32") {
       return { ok: false, detail: "unsupported_platform" };
     }
-    return launchDetached("powershell.exe", [
-      "-NoLogo",
-      "-NoProfile",
-      "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-Command",
-      "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('{MEDIA_PLAY_PAUSE}')",
-    ]);
+    return launchDetached("rundll32.exe", ["user32.dll,LockWorkStation"]);
+  }
+
+  if (actionType === "system_sleep") {
+    if (process.platform !== "win32") {
+      return { ok: false, detail: "unsupported_platform" };
+    }
+    return runPowerShell("Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)");
+  }
+
+  if (actionType === "system_shutdown") {
+    if (process.platform !== "win32") {
+      return { ok: false, detail: "unsupported_platform" };
+    }
+    return launchDetached("shutdown", ["/s", "/t", "0"]);
+  }
+
+  if (actionType === "system_restart") {
+    if (process.platform !== "win32") {
+      return { ok: false, detail: "unsupported_platform" };
+    }
+    return launchDetached("shutdown", ["/r", "/t", "0"]);
+  }
+
+  if (actionType === "open_task_manager") {
+    if (process.platform !== "win32") {
+      return { ok: false, detail: "unsupported_platform" };
+    }
+    return launchDetached("taskmgr.exe", []);
   }
 
   return { ok: false, detail: "unsupported_action" };
@@ -571,7 +635,23 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (!["media_play_pause", "open_url", "open_app"].includes(actionType)) {
+      if (
+        ![
+          "media_play_pause",
+          "media_next",
+          "media_previous",
+          "open_url",
+          "open_app",
+          "volume_up",
+          "volume_down",
+          "volume_mute",
+          "system_lock",
+          "system_sleep",
+          "system_shutdown",
+          "system_restart",
+          "open_task_manager",
+        ].includes(actionType)
+      ) {
         const invalid = logAction(deviceId, actionType, "failed", "unsupported_action");
         sendJson(res, 400, {
           ok: false,

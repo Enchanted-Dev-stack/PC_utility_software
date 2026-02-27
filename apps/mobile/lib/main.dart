@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +31,7 @@ class MobileControlApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0284C7)),
         scaffoldBackgroundColor: const Color(0xFFF6F8FC),
         useMaterial3: true,
+        textTheme: GoogleFonts.spaceGroteskTextTheme(),
       ),
       home: const ControlScreen(),
     );
@@ -297,7 +299,7 @@ class _ControlScreenState extends State<ControlScreen> {
     });
   }
 
-  Future<void> _openTilesScreen() async {
+  Future<void> _openCustomScreen() async {
     await _run(_refreshPreview);
     if (!mounted) {
       return;
@@ -315,6 +317,24 @@ class _ControlScreenState extends State<ControlScreen> {
 
     await _run(_refreshStatus);
     await _run(_refreshPreview);
+  }
+
+  Future<void> _openPresetScreen() async {
+    await _run(_refreshStatus);
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PresetControlScreen(
+          baseUrl: baseUrl,
+          initiallyPaired: paired,
+        ),
+      ),
+    );
+
+    await _run(_refreshStatus);
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -521,14 +541,20 @@ class _ControlScreenState extends State<ControlScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Tiles are separated into a dedicated fullscreen view. Synced tiles: ${previewTiles.length}.',
+                      'Open either your customizable grid or predefined utility controls. Synced tiles: ${previewTiles.length}.',
                       style: const TextStyle(color: Color(0xFF475569)),
                     ),
                     const SizedBox(height: 10),
                     FilledButton.icon(
-                      onPressed: () => _run(_openTilesScreen),
+                      onPressed: () => _run(_openCustomScreen),
                       icon: const Icon(Icons.dashboard_customize),
-                      label: const Text('Open Tiles Screen'),
+                      label: const Text('Custom Controls'),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _run(_openPresetScreen),
+                      icon: const Icon(Icons.tune),
+                      label: const Text('Quick Controls'),
                     ),
                   ],
                 ),
@@ -1048,6 +1074,513 @@ class _TileScreenState extends State<TileScreen> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PresetControlScreen extends StatefulWidget {
+  const PresetControlScreen({
+    super.key,
+    required this.baseUrl,
+    required this.initiallyPaired,
+  });
+
+  final String baseUrl;
+  final bool initiallyPaired;
+
+  @override
+  State<PresetControlScreen> createState() => _PresetControlScreenState();
+}
+
+class _PresetControlScreenState extends State<PresetControlScreen> {
+  bool paired = false;
+  String statusLine = 'Ready';
+
+  Uri _url(String path) => Uri.parse('${widget.baseUrl}$path');
+
+  Future<void> _refreshStatus() async {
+    final response = await http.get(_url('/status'));
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    setState(() {
+      paired = (body['paired'] as bool?) ?? false;
+      statusLine = paired ? 'Connected: ${body['activeHost'] ?? 'desktop'}' : 'Not paired';
+    });
+  }
+
+  Future<void> _executeAction({
+    required String actionType,
+    String? actionValue,
+    required bool destructive,
+    required String label,
+  }) async {
+    if (destructive) {
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text('Confirm $label'),
+            content: Text('Are you sure you want to run "$label" on your PC?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Run'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (approved != true) {
+        return;
+      }
+    }
+
+    final payload = <String, dynamic>{
+      'deviceId': 'android-usb-device',
+      'actionType': actionType,
+    };
+    if (actionValue != null && actionValue.isNotEmpty) {
+      payload['actionValue'] = actionValue;
+    }
+
+    final response = await http.post(
+      _url('/action'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(payload),
+    );
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode >= 400) {
+      setState(() {
+        statusLine = 'Failed: ${body['reason'] ?? response.body}';
+      });
+      return;
+    }
+
+    setState(() {
+      statusLine = '$label executed';
+    });
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (e) {
+      setState(() {
+        statusLine = 'Request failed: $e';
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    paired = widget.initiallyPaired;
+    _run(_refreshStatus);
+  }
+
+  Widget _labelMono(String text, {Color color = const Color(0xFF64748B)}) {
+    return Text(
+      text,
+      style: GoogleFonts.notoSansMono(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.3,
+        color: color,
+      ),
+    );
+  }
+
+  Widget _powerTile({
+    required String id,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color accent,
+    required bool destructive,
+    String? actionValue,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: paired
+            ? () => _run(
+                  () => _executeAction(
+                    actionType: id,
+                    actionValue: actionValue,
+                    destructive: destructive,
+                    label: title,
+                  ),
+                )
+            : null,
+        child: Container(
+          height: 150,
+          decoration: BoxDecoration(
+            color: const Color(0xFF000000),
+            border: Border.all(color: const Color(0xFF1A1A1A), width: 1),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -12,
+                bottom: -12,
+                child: Icon(icon, size: 86, color: accent.withValues(alpha: 0.12)),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(icon, color: accent, size: 20),
+                  ),
+                  const Spacer(),
+                  Text(
+                    title,
+                    style: GoogleFonts.spaceGrotesk(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.spaceGrotesk(
+                      color: const Color(0xFF64748B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _smallActionTile({
+    required String id,
+    required String title,
+    required IconData icon,
+    required Color accent,
+    bool destructive = false,
+    String? actionValue,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: paired
+            ? () => _run(
+                  () => _executeAction(
+                    actionType: id,
+                    actionValue: actionValue,
+                    destructive: destructive,
+                    label: title,
+                  ),
+                )
+            : null,
+        child: Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: const Color(0xFF000000),
+            border: Border.all(color: const Color(0xFF1A1A1A), width: 1),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: accent, size: 30),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: GoogleFonts.spaceGrotesk(
+                  color: const Color(0xFFE2E8F0),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shortcutTile({
+    required String id,
+    required String title,
+    required IconData icon,
+    required Color accent,
+    String? actionValue,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: paired
+            ? () => _run(
+                  () => _executeAction(
+                    actionType: id,
+                    actionValue: actionValue,
+                    destructive: false,
+                    label: title,
+                  ),
+                )
+            : null,
+        child: Container(
+          height: 76,
+          decoration: BoxDecoration(
+            color: const Color(0xFF000000),
+            border: Border.all(color: const Color(0xFF1A1A1A), width: 1),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF101010),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(icon, color: accent, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: GoogleFonts.spaceGrotesk(
+                  color: const Color(0xFFE2E8F0),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Color(0xFF000000),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFF000000),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Color(0xFF1A1A1A))),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Control Center',
+                            style: GoogleFonts.spaceGrotesk(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: paired ? const Color(0xFFC6FF00) : const Color(0xFF475569),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _labelMono(
+                                statusLine.toUpperCase(),
+                                color: const Color(0xFF94A3B8),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => _run(_refreshStatus),
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      Row(
+                        children: [
+                          _powerTile(
+                            id: 'system_sleep',
+                            title: 'Sleep',
+                            subtitle: 'Low power mode',
+                            icon: Icons.bedtime,
+                            accent: const Color(0xFFD500F9),
+                            destructive: true,
+                          ),
+                          _powerTile(
+                            id: 'system_shutdown',
+                            title: 'Shut Down',
+                            subtitle: 'Turn off PC',
+                            icon: Icons.power_settings_new,
+                            accent: const Color(0xFFFF3D00),
+                            destructive: true,
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          _smallActionTile(
+                            id: 'system_restart',
+                            title: 'Restart',
+                            icon: Icons.restart_alt,
+                            accent: const Color(0xFF00E5FF),
+                            destructive: true,
+                          ),
+                          _smallActionTile(
+                            id: 'system_lock',
+                            title: 'Lock',
+                            icon: Icons.lock,
+                            accent: const Color(0xFFC6FF00),
+                          ),
+                          _smallActionTile(
+                            id: 'open_task_manager',
+                            title: 'Task Mgr',
+                            icon: Icons.monitor_heart,
+                            accent: const Color(0xFF2979FF),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: const BoxDecoration(
+                          border: Border(
+                            top: BorderSide(color: Color(0xFF1A1A1A)),
+                            bottom: BorderSide(color: Color(0xFF1A1A1A)),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _labelMono('MEDIA CONTROL', color: const Color(0xFF64748B)),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                _smallActionTile(
+                                  id: 'volume_down',
+                                  title: 'Vol -',
+                                  icon: Icons.volume_down,
+                                  accent: const Color(0xFF38BDF8),
+                                ),
+                                _smallActionTile(
+                                  id: 'volume_mute',
+                                  title: 'Mute',
+                                  icon: Icons.volume_off,
+                                  accent: const Color(0xFF94A3B8),
+                                ),
+                                _smallActionTile(
+                                  id: 'volume_up',
+                                  title: 'Vol +',
+                                  icon: Icons.volume_up,
+                                  accent: const Color(0xFF38BDF8),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                _smallActionTile(
+                                  id: 'media_previous',
+                                  title: 'Prev',
+                                  icon: Icons.skip_previous,
+                                  accent: const Color(0xFFCBD5E1),
+                                ),
+                                _smallActionTile(
+                                  id: 'media_play_pause',
+                                  title: 'Play',
+                                  icon: Icons.play_arrow,
+                                  accent: const Color(0xFFE2E8F0),
+                                ),
+                                _smallActionTile(
+                                  id: 'media_next',
+                                  title: 'Next',
+                                  icon: Icons.skip_next,
+                                  accent: const Color(0xFFCBD5E1),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          _shortcutTile(
+                            id: 'open_app',
+                            actionValue: 'explorer.exe',
+                            title: 'Files',
+                            icon: Icons.folder_open,
+                            accent: const Color(0xFFC6FF00),
+                          ),
+                          _shortcutTile(
+                            id: 'open_url',
+                            actionValue: 'https://google.com',
+                            title: 'Browser',
+                            icon: Icons.public,
+                            accent: const Color(0xFF00E5FF),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          _shortcutTile(
+                            id: 'open_app',
+                            actionValue: 'cmd.exe',
+                            title: 'Terminal',
+                            icon: Icons.terminal,
+                            accent: const Color(0xFFD500F9),
+                          ),
+                          _shortcutTile(
+                            id: 'open_app',
+                            actionValue: 'calc.exe',
+                            title: 'Calc',
+                            icon: Icons.calculate,
+                            accent: const Color(0xFFFF3D00),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
