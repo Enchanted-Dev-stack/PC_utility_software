@@ -21,13 +21,13 @@ A user can tap custom tiles on their phone and instantly trigger the right actio
 
 ### Validated
 
-(None yet - ship to validate)
+- ✓ Desktop builder now provides deterministic mutation feedback, explicit affordance state, and deduplicated messaging clarity — Phase 5
 
 ### Active
 
-- [ ] User can use a visually polished desktop builder with clear hierarchy, spacing, and interaction states.
 - [ ] User can view a mobile dashboard with refined layout, typography, and motion consistent with desktop preview.
 - [ ] User can trust that UI polish does not regress existing pairing, runtime actions, and preview synchronization behavior.
+- [ ] User can trust that saved layout order and desktop edits persist and appear identically in mobile preview sessions.
 
 ### Out of Scope
 
@@ -58,6 +58,7 @@ A user can tap custom tiles on their phone and instantly trigger the right actio
 | Start with simple action set (open app, open URL, media controls) | Maximizes early utility while keeping implementation and security manageable | - Pending |
 | Progressively add advanced features after MVP | Matches user request to keep complexity low first, then expand safely | - Pending |
 | Start milestone v1.1 focused on UI polish and UX refinement | Core functionality is validated; next leverage is product quality and presentation consistency | - Pending |
+| Use deterministic feedback identities for builder outcomes across desktop surfaces | Prevent noisy duplicate messaging while preserving immediate clarity for distinct events | Phase 5 complete |
 
 ---
-*Last updated: 2026-02-27 after milestone v1.1 kickoff*
+*Last updated: 2026-02-27 after Phase 5*

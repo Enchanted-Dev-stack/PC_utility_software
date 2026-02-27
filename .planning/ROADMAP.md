@@ -14,7 +14,7 @@ The roadmap keeps v1.0 runtime behavior intact while raising product quality for
 - [x] **Phase 2: Deterministic Action Runtime** - Deliver reliable action execution with explicit feedback and audit history.
 - [x] **Phase 3: Dashboard Builder and Live Preview** - Deliver full tile management workflows and real-time mobile layout preview.
 - [x] **Phase 4: Unified Visual System** - Establish shared visual language and state semantics across builder and dashboard.
-- [ ] **Phase 5: Builder Interaction Clarity** - Remove ambiguous UI states and make editing feedback concise and trustworthy.
+- [x] **Phase 5: Builder Interaction Clarity** - Remove ambiguous UI states and make editing feedback concise and trustworthy. (completed 2026-02-27)
 - [ ] **Phase 6: Preview Fidelity and Persistence** - Ensure desktop edits and saved order are faithfully reflected in mobile preview.
 - [ ] **Phase 7: Accessibility and Regression Gates** - Lock keyboard/touch accessibility baseline and pre-release UI regression checks.
 
@@ -101,9 +101,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md - Add deterministic builder feedback contracts and outcome messaging for all tile mutations.
-- [ ] 05-02-PLAN.md - Enforce unambiguous builder interaction states and affordances through runtime model guards.
-- [ ] 05-03-PLAN.md - Integrate feedback deduplication and regression coverage across builder and control-panel surfaces.
+- [x] 05-01-PLAN.md - Add deterministic builder feedback contracts and outcome messaging for all tile mutations.
+- [x] 05-02-PLAN.md - Enforce unambiguous builder interaction states and affordances through runtime model guards.
+- [x] 05-03-PLAN.md - Integrate feedback deduplication and regression coverage across builder and control-panel surfaces.
 
 ### Phase 6: Preview Fidelity and Persistence
 **Goal**: Users can trust that desktop edits and saved layout persist and appear identically in mobile preview.
@@ -136,6 +136,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. Deterministic Action Runtime | 5/5 | Complete | 2026-02-26 |
 | 3. Dashboard Builder and Live Preview | 4/4 | Complete | 2026-02-26 |
 | 4. Unified Visual System | 3/3 | Complete | 2026-02-27 |
-| 5. Builder Interaction Clarity | 0/TBD | Not started | - |
+| 5. Builder Interaction Clarity | 3/3 | Complete | 2026-02-27 |
 | 6. Preview Fidelity and Persistence | 0/TBD | Not started | - |
 | 7. Accessibility and Regression Gates | 0/TBD | Not started | - |
