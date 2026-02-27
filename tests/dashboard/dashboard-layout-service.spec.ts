@@ -3,8 +3,49 @@ import {
   validateDashboardTileCreateInput,
   validateDashboardTileUpdateInput
 } from "../../shared/src/contracts/dashboard/dashboard-tile";
+import { InMemoryDashboardLayoutPersistence } from "../../apps/desktop/src/runtime/dashboard/dashboard-layout-persistence";
 import { DashboardLayoutService } from "../../apps/desktop/src/runtime/dashboard/dashboard-layout-service";
 import { DesktopConnectivityRuntime } from "../../apps/desktop/src/runtime/connectivity/desktop-connectivity-runtime";
+
+describe("dashboard persistence adapter", () => {
+  it("clones snapshots on write and read", () => {
+    const persistence = new InMemoryDashboardLayoutPersistence();
+    const source: DashboardLayoutSnapshot = {
+      version: 4,
+      updatedAt: "2026-02-27T10:00:00.000Z",
+      tiles: [
+        {
+          id: "tile-1",
+          label: "Browser",
+          icon: "browser",
+          order: 0,
+          createdAt: "2026-02-27T10:00:00.000Z",
+          updatedAt: "2026-02-27T10:00:00.000Z",
+          action: {
+            actionType: "open_website",
+            payload: {
+              url: "https://example.com"
+            }
+          }
+        }
+      ]
+    };
+
+    persistence.writeSnapshot(source);
+    source.tiles[0].label = "Mutated source";
+
+    const stored = persistence.readSnapshot();
+    expect(stored).not.toBeNull();
+    expect(stored?.tiles[0].label).toBe("Browser");
+
+    if (!stored) {
+      throw new Error("Expected stored snapshot");
+    }
+
+    stored.tiles[0].label = "Mutated read";
+    expect(persistence.readSnapshot()?.tiles[0].label).toBe("Browser");
+  });
+});
 
 describe("dashboard contract validation", () => {
   it("accepts create payloads for supported action mappings", () => {
