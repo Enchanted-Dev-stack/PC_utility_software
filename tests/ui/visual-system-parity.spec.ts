@@ -1,9 +1,14 @@
 import { createDashboardBuilderModelFromSnapshot } from "../../apps/desktop/src/ui/dashboard/DashboardBuilderModel";
 import { createDashboardLivePreviewModel } from "../../apps/desktop/src/ui/dashboard/DashboardLivePreviewModel";
 import { createMobileDashboardModel } from "../../apps/mobile/src/ui/dashboard/MobileDashboardModel";
+import {
+  ACCESSIBILITY_TARGET_SIZE_MINIMUMS,
+  DESKTOP_PRIMARY_KEYBOARD_CONTROLS,
+  hasDesktopKeyboardCoverage
+} from "../../shared/src/contracts/ui/accessibility-standards";
 
 describe("visual parity", () => {
-  it("keeps shared semantic tone and state coverage across builder, preview, and mobile", () => {
+  it("keeps shared semantic tone, state coverage, and accessibility metadata across builder, preview, and mobile", () => {
     const snapshot = {
       version: 3,
       updatedAt: "2026-02-27T14:30:00.000Z",
@@ -45,5 +50,11 @@ describe("visual parity", () => {
     expect(builderAppearance.states.focus.focusRingVisible).toBe(true);
     expect(previewAppearance.states.focus.focusRingVisible).toBe(true);
     expect(mobileAppearance.states.focus.focusRingVisible).toBe(true);
+
+    expect(builder.accessibility.keyboard.controls).toEqual(DESKTOP_PRIMARY_KEYBOARD_CONTROLS);
+    expect(hasDesktopKeyboardCoverage(builder.accessibility.keyboard)).toBe(true);
+    expect(builderAppearance.accessibility.minTargetSize).toEqual(ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop.tile);
+    expect(previewAppearance.accessibility.minTargetSize).toEqual(ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop.tile);
+    expect(mobileAppearance.accessibility.minTargetSize).toEqual(ACCESSIBILITY_TARGET_SIZE_MINIMUMS.mobile.tile);
   });
 });

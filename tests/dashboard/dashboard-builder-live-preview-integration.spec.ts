@@ -2,6 +2,11 @@ import { DesktopConnectivityRuntime } from "../../apps/desktop/src/runtime/conne
 import { InMemoryDashboardLayoutPersistence } from "../../apps/desktop/src/runtime/dashboard/dashboard-layout-persistence";
 import { createDashboardBuilderRuntimeHandlers } from "../../apps/desktop/src/ui/dashboard/DashboardBuilderModel";
 import { createDashboardLivePreviewRuntimeHandlers } from "../../apps/desktop/src/ui/dashboard/DashboardLivePreviewModel";
+import {
+  ACCESSIBILITY_TARGET_SIZE_MINIMUMS,
+  hasDesktopKeyboardCoverage,
+  isFocusVisibilityCompliant
+} from "../../shared/src/contracts/ui/accessibility-standards";
 
 describe("dashboard builder reorder and save", () => {
   it("persists tile order after reorder and save", async () => {
@@ -53,7 +58,7 @@ describe("dashboard builder reorder and save", () => {
   });
 });
 
-describe("live preview updates", () => {
+describe("live preview updates with accessibility invariants", () => {
   it("reflects create edit reorder and delete mutations immediately", async () => {
     const runtime = createRuntime();
     const builder = createDashboardBuilderRuntimeHandlers(runtime);
@@ -401,6 +406,21 @@ async function expectBuilderAndPreviewInSync(
   );
   expect(builderModel.tiles.every((tile) => tile.appearance.states.focus.focusRingVisible)).toBe(true);
   expect(previewModel.tiles.every((tile) => tile.appearance.states.focus.focusRingVisible)).toBe(true);
+  expect(hasDesktopKeyboardCoverage(builderModel.accessibility.keyboard)).toBe(true);
+  expect(isFocusVisibilityCompliant(builderModel.accessibility.primaryControls["tile-list"].focus)).toBe(true);
+  expect(isFocusVisibilityCompliant(builderModel.accessibility.primaryControls["layout-save"].focus)).toBe(true);
+  expect(
+    builderModel.tiles.every((tile) => {
+      return tile.appearance.accessibility.minTargetSize.minWidth >= ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop.tile.minWidth
+        && tile.appearance.accessibility.minTargetSize.minHeight >= ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop.tile.minHeight;
+    })
+  ).toBe(true);
+  expect(
+    previewModel.tiles.every((tile) => {
+      return tile.appearance.accessibility.minTargetSize.minWidth >= ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop.tile.minWidth
+        && tile.appearance.accessibility.minTargetSize.minHeight >= ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop.tile.minHeight;
+    })
+  ).toBe(true);
   expect(builderModel.isDirty).toBe(expected.isDirty);
 }
 
