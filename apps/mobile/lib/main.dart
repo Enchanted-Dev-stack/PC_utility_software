@@ -597,6 +597,9 @@ class _TileScreenState extends State<TileScreen> {
 
   bool paired = false;
   List<Map<String, dynamic>> previewTiles = const [];
+  List<Map<String, dynamic>> profiles = const [];
+  String activeProfileId = '';
+  String activeProfileName = '';
   String themeId = 'neo_brutal';
   StreamSubscription<AccelerometerEvent>? _shakeSubscription;
   DateTime? _lastShakeAt;
@@ -615,6 +618,10 @@ class _TileScreenState extends State<TileScreen> {
   double _activeResizeAccumDy = 0;
   double _activeResizeColStep = 90;
   double _activeResizeRowStep = 106;
+  final Map<int, Offset> _twoFingerPointers = <int, Offset>{};
+  Offset? _twoFingerStartFocal;
+  bool _twoFingerSwipeTriggered = false;
+  DateTime? _lastTwoFingerSwipeAt;
 
   Uri _url(String path) => Uri.parse('${widget.baseUrl}$path');
 
@@ -670,8 +677,14 @@ class _TileScreenState extends State<TileScreen> {
       throw Exception('status_failed:${response.statusCode}');
     }
     final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final nextProfiles = (body['profiles'] as List<dynamic>? ?? const [])
+        .map((entry) => Map<String, dynamic>.from(entry as Map))
+        .toList();
     setState(() {
       paired = (body['paired'] as bool?) ?? false;
+      activeProfileId = '${body['activeProfileId'] ?? ''}';
+      activeProfileName = '${body['activeProfileName'] ?? ''}';
+      profiles = nextProfiles;
     });
   }
 
@@ -712,6 +725,104 @@ class _TileScreenState extends State<TileScreen> {
         _autoSyncInFlight = false;
       }
     });
+  }
+
+  Future<void> _switchProfile(String profileId, {String? profileName}) async {
+    if (profileId.isEmpty || profileId == activeProfileId) {
+      return;
+    }
+
+    final response = await http.post(
+      _url('/profiles/switch'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'profileId': profileId}),
+    );
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode >= 400) {
+      throw Exception(body['reason'] ?? response.body);
+    }
+
+    await _refreshStatus();
+    await _refreshPreview();
+    _notify('Profile switched: ${profileName ?? profileId}');
+  }
+
+  Future<void> _cycleProfile({required bool next}) async {
+    if (profiles.length < 2) {
+      return;
+    }
+
+    final currentIndex = profiles.indexWhere(
+      (profile) => '${profile['id'] ?? ''}' == activeProfileId,
+    );
+    final safeCurrent = currentIndex >= 0 ? currentIndex : 0;
+    final step = next ? 1 : -1;
+    final nextIndex = (safeCurrent + step + profiles.length) % profiles.length;
+    final target = profiles[nextIndex];
+    final profileId = '${target['id'] ?? ''}';
+    final profileName = '${target['name'] ?? profileId}';
+    await _switchProfile(profileId, profileName: profileName);
+  }
+
+  Offset? _twoFingerFocalPoint() {
+    if (_twoFingerPointers.length != 2) {
+      return null;
+    }
+
+    final values = _twoFingerPointers.values.toList(growable: false);
+    return Offset(
+      (values[0].dx + values[1].dx) / 2,
+      (values[0].dy + values[1].dy) / 2,
+    );
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    _twoFingerPointers[event.pointer] = event.position;
+    if (_twoFingerPointers.length == 2) {
+      _twoFingerStartFocal = _twoFingerFocalPoint();
+      _twoFingerSwipeTriggered = false;
+    }
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (!_twoFingerPointers.containsKey(event.pointer)) {
+      return;
+    }
+    _twoFingerPointers[event.pointer] = event.position;
+    if (_twoFingerPointers.length != 2 || _twoFingerSwipeTriggered) {
+      return;
+    }
+
+    final start = _twoFingerStartFocal;
+    final current = _twoFingerFocalPoint();
+    if (start == null || current == null) {
+      return;
+    }
+
+    final dx = current.dx - start.dx;
+    final dy = current.dy - start.dy;
+    const minHorizontalDistance = 70.0;
+    if (dx.abs() < minHorizontalDistance || dx.abs() < (dy.abs() * 1.25)) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (_lastTwoFingerSwipeAt != null &&
+        now.difference(_lastTwoFingerSwipeAt!) < const Duration(milliseconds: 900)) {
+      return;
+    }
+
+    _lastTwoFingerSwipeAt = now;
+    _twoFingerSwipeTriggered = true;
+    _run(() => _cycleProfile(next: dx < 0));
+  }
+
+  void _handlePointerUp(PointerEvent event) {
+    _twoFingerPointers.remove(event.pointer);
+    if (_twoFingerPointers.length < 2) {
+      _twoFingerStartFocal = null;
+      _twoFingerSwipeTriggered = false;
+    }
   }
 
   Future<void> _sendAction(String actionType, {String? tileId, String? actionValue}) async {
@@ -1011,6 +1122,11 @@ class _TileScreenState extends State<TileScreen> {
                     'Paired: ${paired ? 'yes' : 'no'} | Tiles: ${previewTiles.length} | Resize: ${_resizeModeEnabled ? 'on' : 'off'}',
                     style: const TextStyle(color: Color(0xFF475569)),
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Active profile: ${activeProfileName.isNotEmpty ? activeProfileName : activeProfileId.isNotEmpty ? activeProfileId : 'default'}',
+                    style: const TextStyle(color: Color(0xFF475569)),
+                  ),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -1048,6 +1164,31 @@ class _TileScreenState extends State<TileScreen> {
                         label: const Text('Back to Home'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Profiles',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: profiles.isEmpty
+                        ? [const Text('No profiles available')]
+                        : profiles.map((profile) {
+                            final id = '${profile['id'] ?? ''}';
+                            final name = '${profile['name'] ?? id}';
+                            final count = '${profile['tileCount'] ?? 0}';
+                            return ChoiceChip(
+                              label: Text('$name ($count)'),
+                              selected: id == activeProfileId,
+                              onSelected: (_) async {
+                                await _run(() => _switchProfile(id, profileName: name));
+                                setSheetState(() {});
+                              },
+                            );
+                          }).toList(),
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -1259,9 +1400,15 @@ class _TileScreenState extends State<TileScreen> {
       child: Scaffold(
         backgroundColor: activeTheme.screenBackground,
         body: SafeArea(
-          child: GestureDetector(
-            onLongPress: _openQuickControls,
-            child: Builder(
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: _handlePointerDown,
+            onPointerMove: _handlePointerMove,
+            onPointerUp: _handlePointerUp,
+            onPointerCancel: _handlePointerUp,
+            child: GestureDetector(
+              onLongPress: _openQuickControls,
+              child: Builder(
               builder: (context) {
                 final tileListView = ScrollConfiguration(
                   behavior: const MaterialScrollBehavior().copyWith(overscroll: false),
@@ -1612,6 +1759,7 @@ class _TileScreenState extends State<TileScreen> {
                 );
               },
             ),
+          ),
           ),
         ),
       ),

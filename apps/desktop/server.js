@@ -51,26 +51,34 @@ const state = {
     isDirty: false,
     lastSavedAt: null,
     revision: 1,
-    tiles: [
+    activeProfileId: "profile-default",
+    profiles: [
       {
-        id: "tile-1",
-        order: 0,
-        label: "Browser",
-        icon: "🌐",
-        actionType: "open_url",
-        actionValue: "https://example.com",
-        spanCols: 2,
-        spanRows: 1,
-      },
-      {
-        id: "tile-2",
-        order: 1,
-        label: "Music",
-        icon: "🎵",
-        actionType: "media_play_pause",
-        actionValue: "",
-        spanCols: 2,
-        spanRows: 1,
+        id: "profile-default",
+        name: "Default",
+        updatedAt: new Date().toISOString(),
+        tiles: [
+          {
+            id: "tile-1",
+            order: 0,
+            label: "Browser",
+            icon: "🌐",
+            actionType: "open_url",
+            actionValue: "https://example.com",
+            spanCols: 2,
+            spanRows: 1,
+          },
+          {
+            id: "tile-2",
+            order: 1,
+            label: "Music",
+            icon: "🎵",
+            actionType: "media_play_pause",
+            actionValue: "",
+            spanCols: 2,
+            spanRows: 1,
+          },
+        ],
       },
     ],
   },
@@ -143,20 +151,6 @@ function getAccessibilityVerificationPrerequisite() {
   };
 }
 
-function normalizeTiles() {
-  state.dashboard.tiles = state.dashboard.tiles
-    .slice()
-    .sort((a, b) => a.order - b.order)
-    .map((tile, index) => ({
-      ...tile,
-      order: index,
-      icon: String(tile.icon || "⬜"),
-      imageUrl: String(tile.imageUrl || ""),
-      spanCols: normalizeSpan(tile.spanCols, 2),
-      spanRows: normalizeSpan(tile.spanRows, 1),
-    }));
-}
-
 function normalizeSpan(value, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -164,6 +158,83 @@ function normalizeSpan(value, fallback) {
   }
 
   return Math.max(MIN_TILE_SPAN, Math.min(MAX_TILE_SPAN, Math.round(numeric)));
+}
+
+function normalizeProfileTiles(tilesInput) {
+  const tiles = Array.isArray(tilesInput) ? tilesInput : [];
+  return tiles
+    .slice()
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+    .map((tile, index) => ({
+      id: String(tile.id || `tile-${Date.now()}-${index}`),
+      order: index,
+      label: String(tile.label || `Tile ${index + 1}`),
+      icon: String(tile.icon || "⬜"),
+      imageUrl: String(tile.imageUrl || "").trim(),
+      actionType: String(tile.actionType || "open_url"),
+      actionValue: String(
+        tile.actionValue === undefined
+          ? defaultActionValue(String(tile.actionType || "open_url"))
+          : tile.actionValue,
+      ),
+      spanCols: normalizeSpan(tile.spanCols, 2),
+      spanRows: normalizeSpan(tile.spanRows, 1),
+    }));
+}
+
+function ensureDashboardProfiles() {
+  if (!Array.isArray(state.dashboard.profiles) || state.dashboard.profiles.length === 0) {
+    const legacyTiles = Array.isArray(state.dashboard.tiles) ? state.dashboard.tiles : [];
+    state.dashboard.profiles = [
+      {
+        id: "profile-default",
+        name: "Default",
+        updatedAt: new Date().toISOString(),
+        tiles: normalizeProfileTiles(legacyTiles),
+      },
+    ];
+  }
+
+  state.dashboard.profiles = state.dashboard.profiles.map((profile, index) => ({
+    id: String(profile.id || `profile-${index + 1}`),
+    name: String(profile.name || `Profile ${index + 1}`),
+    updatedAt: profile.updatedAt ? String(profile.updatedAt) : new Date().toISOString(),
+    tiles: normalizeProfileTiles(profile.tiles),
+  }));
+
+  const activeId = String(state.dashboard.activeProfileId || "");
+  const activeExists = state.dashboard.profiles.some((profile) => profile.id === activeId);
+  if (!activeExists) {
+    state.dashboard.activeProfileId = state.dashboard.profiles[0].id;
+  }
+
+  delete state.dashboard.tiles;
+}
+
+function getActiveProfile() {
+  ensureDashboardProfiles();
+  return (
+    state.dashboard.profiles.find((profile) => profile.id === state.dashboard.activeProfileId) ||
+    state.dashboard.profiles[0]
+  );
+}
+
+function getProfileById(profileId) {
+  ensureDashboardProfiles();
+  return state.dashboard.profiles.find((profile) => profile.id === profileId) || null;
+}
+
+function touchDashboardRevision(reason, options = {}) {
+  if (options.markDirty !== false) {
+    state.dashboard.isDirty = true;
+  }
+  state.dashboard.revision = (state.dashboard.revision || 0) + 1;
+  const profile = getActiveProfile();
+  profile.updatedAt = new Date().toISOString();
+  if (reason) {
+    logEvent("dashboard", reason);
+  }
+  persistDashboardState();
 }
 
 function loadPersistedDashboardState() {
@@ -179,23 +250,8 @@ function loadPersistedDashboardState() {
       return;
     }
 
-    const tiles = Array.isArray(persisted.tiles)
-      ? persisted.tiles.map((tile, index) => ({
-          id: String(tile.id || `tile-${Date.now()}-${index}`),
-          order: Number.isFinite(Number(tile.order)) ? Number(tile.order) : index,
-          label: String(tile.label || `Tile ${index + 1}`),
-          icon: String(tile.icon || "⭐"),
-          imageUrl: String(tile.imageUrl || "").trim(),
-          actionType: String(tile.actionType || "open_url"),
-          actionValue: String(
-            tile.actionValue === undefined
-              ? defaultActionValue(String(tile.actionType || "open_url"))
-              : tile.actionValue,
-          ),
-          spanCols: normalizeSpan(tile.spanCols, 2),
-          spanRows: normalizeSpan(tile.spanRows, 1),
-        }))
-      : [];
+    const legacyTiles = Array.isArray(persisted.tiles) ? persisted.tiles : [];
+    const incomingProfiles = Array.isArray(persisted.profiles) ? persisted.profiles : null;
 
     state.dashboard = {
       isDirty: Boolean(persisted.isDirty),
@@ -203,10 +259,28 @@ function loadPersistedDashboardState() {
       revision: Number.isFinite(Number(persisted.revision))
         ? Math.max(1, Number(persisted.revision))
         : 1,
-      tiles,
+      activeProfileId: String(persisted.activeProfileId || "profile-default"),
+      profiles:
+        incomingProfiles && incomingProfiles.length > 0
+          ? incomingProfiles
+          : [
+              {
+                id: "profile-default",
+                name: "Default",
+                updatedAt: new Date().toISOString(),
+                tiles: legacyTiles,
+              },
+            ],
     };
-    normalizeTiles();
-    logEvent("storage", `Loaded persisted dashboard (${state.dashboard.tiles.length} tile(s))`);
+    ensureDashboardProfiles();
+    const totalTiles = state.dashboard.profiles.reduce(
+      (sum, profile) => sum + profile.tiles.length,
+      0,
+    );
+    logEvent(
+      "storage",
+      `Loaded persisted dashboard (${state.dashboard.profiles.length} profile(s), ${totalTiles} tile(s))`,
+    );
   } catch (error) {
     logEvent("storage", `Failed to load dashboard state: ${String(error.message || error)}`);
   }
@@ -214,10 +288,10 @@ function loadPersistedDashboardState() {
 
 function persistDashboardState() {
   try {
-    normalizeTiles();
+    ensureDashboardProfiles();
     fs.mkdirSync(DASHBOARD_STORAGE_DIR, { recursive: true });
     const payload = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       savedAt: new Date().toISOString(),
       dashboard: state.dashboard,
     };
@@ -228,12 +302,21 @@ function persistDashboardState() {
 }
 
 function dashboardSnapshot() {
-  normalizeTiles();
+  ensureDashboardProfiles();
+  const activeProfile = getActiveProfile();
   return {
     isDirty: state.dashboard.isDirty,
     lastSavedAt: state.dashboard.lastSavedAt,
     revision: state.dashboard.revision,
-    tiles: state.dashboard.tiles,
+    activeProfileId: activeProfile.id,
+    activeProfileName: activeProfile.name,
+    profiles: state.dashboard.profiles.map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+      tileCount: profile.tiles.length,
+      updatedAt: profile.updatedAt,
+    })),
+    tiles: activeProfile.tiles,
   };
 }
 
@@ -468,6 +551,83 @@ function runPowerShellScript(script, options = {}) {
   });
 }
 
+function toSendKeysExpression(rawShortcut) {
+  const shortcut = String(rawShortcut || "").trim();
+  if (!shortcut) {
+    return null;
+  }
+
+  const parts = shortcut
+    .split("+")
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const modifiers = new Set();
+  let keyToken = null;
+  for (const token of parts) {
+    if (["ctrl", "control"].includes(token)) {
+      modifiers.add("^");
+      continue;
+    }
+    if (["alt", "option"].includes(token)) {
+      modifiers.add("%");
+      continue;
+    }
+    if (["shift"].includes(token)) {
+      modifiers.add("+");
+      continue;
+    }
+    if (["win", "windows", "meta", "cmd", "command"].includes(token)) {
+      modifiers.add("#");
+      continue;
+    }
+    keyToken = token;
+  }
+
+  if (!keyToken) {
+    return null;
+  }
+
+  const keyAliases = {
+    enter: "{ENTER}",
+    return: "{ENTER}",
+    esc: "{ESC}",
+    escape: "{ESC}",
+    space: " ",
+    tab: "{TAB}",
+    up: "{UP}",
+    down: "{DOWN}",
+    left: "{LEFT}",
+    right: "{RIGHT}",
+    backspace: "{BACKSPACE}",
+    delete: "{DELETE}",
+    del: "{DELETE}",
+    home: "{HOME}",
+    end: "{END}",
+    pgup: "{PGUP}",
+    pageup: "{PGUP}",
+    pgdn: "{PGDN}",
+    pagedown: "{PGDN}",
+    insert: "{INSERT}",
+  };
+
+  let keyPart = keyAliases[keyToken] || null;
+  if (!keyPart && /^f([1-9]|1[0-9]|2[0-4])$/.test(keyToken)) {
+    keyPart = `{${keyToken.toUpperCase()}}`;
+  }
+  if (!keyPart && /^[a-z0-9]$/.test(keyToken)) {
+    keyPart = keyToken;
+  }
+  if (!keyPart) {
+    return null;
+  }
+
+  return `${Array.from(modifiers).join("")}${keyPart}`;
+}
+
 async function executeDesktopAction(actionType, actionValue) {
   const sendVirtualKey = (virtualKeyCode, repeats = 1) => {
     if (process.platform !== "win32") {
@@ -528,6 +688,21 @@ for ($i = 0; $i -lt ${repeatCount}; $i++) {
 
     const [command, ...args] = parts;
     return launchDetached(command, args);
+  }
+
+  if (actionType === "send_hotkey") {
+    if (process.platform !== "win32") {
+      return { ok: false, detail: "unsupported_platform" };
+    }
+    const expression = toSendKeysExpression(actionValue);
+    if (!expression) {
+      return { ok: false, detail: "invalid_hotkey_expression" };
+    }
+    const escaped = expression.replaceAll('"', '""');
+    return runPowerShellScript(
+      `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("${escaped}")`,
+      { timeoutMs: 6_000 },
+    );
   }
 
   if (actionType === "media_play_pause") {
@@ -680,11 +855,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/status") {
+      const snapshot = dashboardSnapshot();
       sendJson(res, 200, {
         paired: state.paired,
         trustedDeviceId: state.trustedDeviceId,
         connection: state.connection,
         activeHost: state.lastHost,
+        activeProfileId: snapshot.activeProfileId,
+        activeProfileName: snapshot.activeProfileName,
+        profiles: snapshot.profiles,
         trustedIndicator: state.paired ? "trusted" : "untrusted",
         reason: state.lastReason,
         events: state.events,
@@ -702,23 +881,114 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/profiles") {
+      const snapshot = dashboardSnapshot();
+      sendJson(res, 200, {
+        activeProfileId: snapshot.activeProfileId,
+        activeProfileName: snapshot.activeProfileName,
+        profiles: snapshot.profiles,
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/profiles") {
+      const body = await readBody(req);
+      const profileName = String(body.name || "").trim();
+      const sourceProfile = getActiveProfile();
+      const profile = {
+        id: `profile-${Date.now()}`,
+        name: profileName || `Profile ${state.dashboard.profiles.length + 1}`,
+        updatedAt: new Date().toISOString(),
+        tiles: sourceProfile.tiles.map((tile, index) => ({
+          ...tile,
+          id: `tile-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+          order: index,
+        })),
+      };
+      state.dashboard.profiles.push(profile);
+      state.dashboard.activeProfileId = profile.id;
+      touchDashboardRevision(`Profile created: ${profile.name}`);
+      sendJson(res, 200, { ok: true, profile, dashboard: dashboardSnapshot() });
+      return;
+    }
+
+    if (req.method === "PUT" && url.pathname.startsWith("/profiles/")) {
+      const profileId = url.pathname.split("/").pop();
+      const body = await readBody(req);
+      const profile = getProfileById(String(profileId || ""));
+      if (!profile) {
+        sendJson(res, 404, { ok: false, reason: "profile_not_found" });
+        return;
+      }
+      const nextName = String(body.name || "").trim();
+      if (!nextName) {
+        sendJson(res, 400, { ok: false, reason: "invalid_profile_name" });
+        return;
+      }
+      profile.name = nextName;
+      profile.updatedAt = new Date().toISOString();
+      touchDashboardRevision(`Profile renamed: ${profile.name}`);
+      sendJson(res, 200, { ok: true, profile, dashboard: dashboardSnapshot() });
+      return;
+    }
+
+    if (req.method === "DELETE" && url.pathname.startsWith("/profiles/")) {
+      const profileId = String(url.pathname.split("/").pop() || "");
+      ensureDashboardProfiles();
+      if (state.dashboard.profiles.length <= 1) {
+        sendJson(res, 400, { ok: false, reason: "last_profile_protected" });
+        return;
+      }
+      const before = state.dashboard.profiles.length;
+      state.dashboard.profiles = state.dashboard.profiles.filter((profile) => profile.id !== profileId);
+      if (state.dashboard.profiles.length === before) {
+        sendJson(res, 404, { ok: false, reason: "profile_not_found" });
+        return;
+      }
+      if (state.dashboard.activeProfileId === profileId) {
+        state.dashboard.activeProfileId = state.dashboard.profiles[0].id;
+      }
+      touchDashboardRevision(`Profile deleted: ${profileId}`);
+      sendJson(res, 200, { ok: true, dashboard: dashboardSnapshot() });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/profiles/switch") {
+      const body = await readBody(req);
+      const profileId = String(body.profileId || "");
+      const profile = getProfileById(profileId);
+      if (!profile) {
+        sendJson(res, 404, { ok: false, reason: "profile_not_found" });
+        return;
+      }
+      if (state.dashboard.activeProfileId !== profileId) {
+        state.dashboard.activeProfileId = profileId;
+        touchDashboardRevision(`Profile switched: ${profile.name}`, { markDirty: false });
+      }
+      sendJson(res, 200, { ok: true, activeProfileId: profileId, dashboard: dashboardSnapshot() });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/preview") {
       const snapshot = dashboardSnapshot();
       sendJson(res, 200, {
         layoutVersion: `${state.dashboard.lastSavedAt || "unsaved"}:${snapshot.revision || 0}`,
+        activeProfileId: snapshot.activeProfileId,
+        activeProfileName: snapshot.activeProfileName,
         tiles: snapshot.tiles,
       });
       return;
     }
 
     if (req.method === "POST" && url.pathname === "/dashboard/tiles") {
+      const activeProfile = getActiveProfile();
       const body = await readBody(req);
       const actionType = String(body.actionType || "open_url");
       const id = `tile-${Date.now()}`;
       const tile = {
         id,
-        order: state.dashboard.tiles.length,
-        label: String(body.label || `Tile ${state.dashboard.tiles.length + 1}`),
+        order: activeProfile.tiles.length,
+        label: String(body.label || `Tile ${activeProfile.tiles.length + 1}`),
         icon: String(body.icon || "⭐"),
         imageUrl: String(body.imageUrl || "").trim(),
         actionType,
@@ -726,11 +996,8 @@ const server = http.createServer(async (req, res) => {
         spanCols: normalizeSpan(body.spanCols, 2),
         spanRows: normalizeSpan(body.spanRows, 1),
       };
-      state.dashboard.tiles.push(tile);
-      state.dashboard.isDirty = true;
-      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
-      persistDashboardState();
-      logEvent("dashboard", `Tile created: ${tile.label}`);
+      activeProfile.tiles.push(tile);
+      touchDashboardRevision(`Tile created (${activeProfile.name}): ${tile.label}`);
       sendJson(res, 200, { ok: true, tile, dashboard: dashboardSnapshot() });
       return;
     }
@@ -738,7 +1005,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "PUT" && url.pathname.startsWith("/dashboard/tiles/")) {
       const id = url.pathname.split("/").pop();
       const body = await readBody(req);
-      const tile = state.dashboard.tiles.find((t) => t.id === id);
+      const activeProfile = getActiveProfile();
+      const tile = activeProfile.tiles.find((t) => t.id === id);
       if (!tile) {
         sendJson(res, 404, { ok: false, reason: "tile_not_found" });
         return;
@@ -760,39 +1028,35 @@ const server = http.createServer(async (req, res) => {
         body.spanRows === undefined ? tile.spanRows : body.spanRows,
         tile.spanRows || 1,
       );
-      state.dashboard.isDirty = true;
-      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
-      persistDashboardState();
-      logEvent("dashboard", `Tile edited: ${tile.label}`);
+      touchDashboardRevision(`Tile edited (${activeProfile.name}): ${tile.label}`);
       sendJson(res, 200, { ok: true, tile, dashboard: dashboardSnapshot() });
       return;
     }
 
     if (req.method === "DELETE" && url.pathname.startsWith("/dashboard/tiles/")) {
       const id = url.pathname.split("/").pop();
-      const before = state.dashboard.tiles.length;
-      state.dashboard.tiles = state.dashboard.tiles.filter((t) => t.id !== id);
-      if (state.dashboard.tiles.length === before) {
+      const activeProfile = getActiveProfile();
+      const before = activeProfile.tiles.length;
+      activeProfile.tiles = activeProfile.tiles.filter((t) => t.id !== id);
+      if (activeProfile.tiles.length === before) {
         sendJson(res, 404, { ok: false, reason: "tile_not_found" });
         return;
       }
-      state.dashboard.isDirty = true;
-      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
-      normalizeTiles();
-      persistDashboardState();
-      logEvent("dashboard", `Tile deleted: ${id}`);
+      activeProfile.tiles = normalizeProfileTiles(activeProfile.tiles);
+      touchDashboardRevision(`Tile deleted (${activeProfile.name}): ${id}`);
       sendJson(res, 200, { ok: true, dashboard: dashboardSnapshot() });
       return;
     }
 
     if (req.method === "POST" && url.pathname === "/dashboard/reorder") {
       const body = await readBody(req);
+      const activeProfile = getActiveProfile();
       const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
       if (ids.length === 0) {
         sendJson(res, 400, { ok: false, reason: "invalid_ids" });
         return;
       }
-      const byId = new Map(state.dashboard.tiles.map((t) => [t.id, t]));
+      const byId = new Map(activeProfile.tiles.map((t) => [t.id, t]));
       const nextTiles = [];
       for (const id of ids) {
         const tile = byId.get(id);
@@ -806,11 +1070,8 @@ const server = http.createServer(async (req, res) => {
       for (const tile of byId.values()) {
         nextTiles.push(tile);
       }
-      state.dashboard.tiles = nextTiles.map((tile, index) => ({ ...tile, order: index }));
-      state.dashboard.isDirty = true;
-      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
-      persistDashboardState();
-      logEvent("dashboard", "Tiles reordered");
+      activeProfile.tiles = nextTiles.map((tile, index) => ({ ...tile, order: index }));
+      touchDashboardRevision(`Tiles reordered (${activeProfile.name})`);
       sendJson(res, 200, { ok: true, dashboard: dashboardSnapshot() });
       return;
     }
@@ -836,7 +1097,8 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const deviceId = String(body.deviceId || "");
       const tileId = String(body.tileId || "");
-      const tile = tileId ? state.dashboard.tiles.find((entry) => entry.id === tileId) : null;
+      const activeProfile = getActiveProfile();
+      const tile = tileId ? activeProfile.tiles.find((entry) => entry.id === tileId) : null;
       const actionType = String(tile?.actionType || body.actionType || "");
       const actionValue = String(tile?.actionValue || body.actionValue || "");
 
@@ -865,6 +1127,7 @@ const server = http.createServer(async (req, res) => {
           "system_shutdown",
           "system_restart",
           "open_task_manager",
+          "send_hotkey",
         ].includes(actionType)
       ) {
         const invalid = logAction(deviceId, actionType, "failed", "unsupported_action");
@@ -876,7 +1139,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if ((actionType === "open_url" || actionType === "open_app") && !actionValue.trim()) {
+      if ((actionType === "open_url" || actionType === "open_app" || actionType === "send_hotkey") && !actionValue.trim()) {
         const invalidTarget = logAction(deviceId, actionType, "failed", "missing_action_target");
         sendJson(res, 400, {
           ok: false,
@@ -1044,6 +1307,20 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
     <pre style="margin-top:8px">${mobileUrl}</pre>
   </div>
 
+  <div class="card" style="margin-bottom:16px">
+    <h2 style="margin-bottom:8px">Profiles</h2>
+    <div class="actions">
+      <label for="profile-select" style="margin:0">Active Profile</label>
+      <select id="profile-select" style="min-width:220px" onchange="switchProfile(this.value).catch((error)=>setMessage('Profile switch failed: '+error.message))"></select>
+      <input id="profile-name-input" type="text" placeholder="Profile name" style="min-width:220px" />
+      <button id="profile-create" type="button" class="ghost" onclick="createProfile().catch((error)=>setMessage('Profile create failed: '+error.message))">Create</button>
+      <button id="profile-rename" type="button" class="ghost" onclick="renameProfile().catch((error)=>setMessage('Profile rename failed: '+error.message))">Rename</button>
+      <button id="profile-delete" type="button" class="danger" onclick="deleteProfile().catch((error)=>setMessage('Profile delete failed: '+error.message))">Delete</button>
+    </div>
+    <div class="meta">Active: <b id="profile-active">-</b></div>
+    <div class="meta" id="builder-message">Ready.</div>
+  </div>
+
   <div class="grid">
     <section class="card legacy-panel">
       <h2>Tile Registry</h2>
@@ -1087,6 +1364,7 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
         <select id="tile-action">
           <option value="open_url">Open URL</option>
           <option value="open_app">Open App</option>
+          <option value="send_hotkey">Send Hotkey</option>
           <option value="media_play_pause">Media Play/Pause</option>
         </select>
       </div>
@@ -1148,6 +1426,7 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
               <select id="canvas-payload-action">
                 <option value="open_url">Open URL</option>
                 <option value="open_app">Open App</option>
+                <option value="send_hotkey">Send Hotkey</option>
                 <option value="media_play_pause">Media Play/Pause</option>
                 <option value="media_next">Media Next</option>
                 <option value="media_previous">Media Previous</option>
@@ -1301,6 +1580,7 @@ let mirrorPayloadPanelClosed = true;
 const SUPPORTED_ACTIONS = [
   "open_url",
   "open_app",
+  "send_hotkey",
   "media_play_pause",
   "media_next",
   "media_previous",
@@ -1328,7 +1608,14 @@ function escapeHtml(text) {
 }
 
 function setMessage(msg) {
-  document.getElementById("editor-message").textContent = msg;
+  const legacy = document.getElementById("editor-message");
+  if (legacy) {
+    legacy.textContent = msg;
+  }
+  const primary = document.getElementById("builder-message");
+  if (primary) {
+    primary.textContent = msg;
+  }
 }
 
 function selectedIconValue() {
@@ -1392,6 +1679,137 @@ function renderCanvasThemeOptions() {
     })
     .join("");
   select.innerHTML = options;
+}
+
+function renderProfileControls() {
+  const select = document.getElementById("profile-select");
+  const nameInput = document.getElementById("profile-name-input");
+  const profiles = Array.isArray(dashboard.profiles) ? dashboard.profiles : [];
+  select.innerHTML = profiles
+    .map((profile) => {
+      const selected = profile.id === dashboard.activeProfileId ? " selected" : "";
+      return '<option value="' + escapeHtml(profile.id) + '"' + selected + '>' + escapeHtml(profile.name) + ' (' + Number(profile.tileCount || 0) + ')</option>';
+    })
+    .join("");
+
+  const active = profiles.find((profile) => profile.id === dashboard.activeProfileId);
+  document.getElementById("profile-active").textContent = active
+    ? (active.name + " (" + active.id + ")")
+    : "-";
+  if (active && nameInput && !nameInput.matches(":focus")) {
+    nameInput.value = active.name;
+  }
+}
+
+async function switchProfile(profileId) {
+  const resp = await fetch("/profiles/switch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profileId }),
+  });
+  if (resp.status >= 400) {
+    const fail = await resp.json();
+    throw new Error(fail.reason || String(resp.status));
+  }
+  const payload = await resp.json();
+  dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
+  selectedTileId = null;
+  setForm(null);
+  renderProfileControls();
+  renderTileList();
+  renderLayoutCanvas();
+  renderCanvasPayloadPanel();
+  await refreshPreview();
+  setMessage("Switched profile to " + (dashboard.activeProfileName || profileId));
+}
+
+async function createProfile() {
+  const suggested = "Profile " + ((dashboard.profiles || []).length + 1);
+  const nameInput = document.getElementById("profile-name-input");
+  const name = (nameInput?.value || "").trim() || suggested;
+
+  const resp = await fetch("/profiles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (resp.status >= 400) {
+    const fail = await resp.json();
+    throw new Error(fail.reason || String(resp.status));
+  }
+  const payload = await resp.json();
+  dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
+  selectedTileId = null;
+  setForm(null);
+  renderProfileControls();
+  renderTileList();
+  renderLayoutCanvas();
+  renderCanvasPayloadPanel();
+  await refreshPreview();
+  if (nameInput) {
+    nameInput.value = payload.profile?.name || name;
+  }
+  setMessage("Created profile: " + (payload.profile?.name || name));
+}
+
+async function renameProfile() {
+  const active = (dashboard.profiles || []).find((profile) => profile.id === dashboard.activeProfileId);
+  if (!active) {
+    setMessage("No active profile.");
+    return;
+  }
+  const input = document.getElementById("profile-name-input");
+  const name = (input?.value || "").trim();
+  if (!name) {
+    setMessage("Type a name in the profile name field first.");
+    return;
+  }
+  if (name === active.name) {
+    setMessage("Profile name is unchanged.");
+    return;
+  }
+  const resp = await fetch("/profiles/" + active.id, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (resp.status >= 400) {
+    const fail = await resp.json();
+    throw new Error(fail.reason || String(resp.status));
+  }
+  const payload = await resp.json();
+  dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
+  renderProfileControls();
+  setMessage("Renamed profile to " + name);
+}
+
+async function deleteProfile() {
+  const active = (dashboard.profiles || []).find((profile) => profile.id === dashboard.activeProfileId);
+  if (!active) {
+    setMessage("No active profile.");
+    return;
+  }
+  const resp = await fetch("/profiles/" + active.id, {
+    method: "DELETE",
+  });
+  if (resp.status >= 400) {
+    const fail = await resp.json();
+    throw new Error(fail.reason || String(resp.status));
+  }
+  const payload = await resp.json();
+  dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
+  selectedTileId = null;
+  setForm(null);
+  renderProfileControls();
+  renderTileList();
+  renderLayoutCanvas();
+  renderCanvasPayloadPanel();
+  await refreshPreview();
+  setMessage("Deleted profile " + active.name);
 }
 
 function buildPlacements(tiles, gridColumns = 4) {
@@ -1543,6 +1961,12 @@ async function quickEditTile(tileId) {
     nextActionValue = target.trim();
   } else if (nextActionType === "open_app") {
     const target = prompt("Application command", nextActionValue || "notepad.exe");
+    if (target === null) {
+      return;
+    }
+    nextActionValue = target.trim();
+  } else if (nextActionType === "send_hotkey") {
+    const target = prompt("Hotkey combo", nextActionValue || "ctrl+shift+k");
     if (target === null) {
       return;
     }
@@ -1914,6 +2338,9 @@ function defaultTargetForAction(actionType) {
   if (actionType === "open_app") {
     return "notepad.exe";
   }
+  if (actionType === "send_hotkey") {
+    return "ctrl+shift+k";
+  }
   return "";
 }
 
@@ -1929,6 +2356,13 @@ function syncTargetUi() {
     targetLabel.textContent = "Application Command";
     targetInput.placeholder = "notepad.exe";
     targetInput.disabled = false;
+  } else if (actionType === "send_hotkey") {
+    targetLabel.textContent = "Hotkey Combo";
+    targetInput.placeholder = "ctrl+shift+k";
+    targetInput.disabled = false;
+    if (!targetInput.value.trim()) {
+      targetInput.value = "ctrl+shift+k";
+    }
   } else {
     targetLabel.textContent = "No target needed";
     targetInput.placeholder = "media action has no target";
@@ -1950,6 +2384,13 @@ function syncCanvasPayloadTargetUi() {
     targetLabel.textContent = "Application Command";
     targetInput.placeholder = "notepad.exe";
     targetInput.disabled = false;
+  } else if (actionType === "send_hotkey") {
+    targetLabel.textContent = "Hotkey Combo";
+    targetInput.placeholder = "ctrl+shift+k";
+    targetInput.disabled = false;
+    if (!targetInput.value.trim()) {
+      targetInput.value = "ctrl+shift+k";
+    }
   } else {
     targetLabel.textContent = "No target needed";
     targetInput.placeholder = "Action has no target";
@@ -1985,7 +2426,10 @@ function readImageFileAsDataUrl(file) {
 function readCanvasPayloadForm() {
   const actionType = document.getElementById("canvas-payload-action").value;
   const rawTarget = document.getElementById("canvas-payload-target").value.trim();
-  const actionValue = (actionType === "open_url" || actionType === "open_app") ? rawTarget : "";
+  const actionValue =
+    (actionType === "open_url" || actionType === "open_app" || actionType === "send_hotkey")
+      ? rawTarget
+      : "";
   return {
     label: document.getElementById("canvas-payload-label").value.trim() || "Untitled Tile",
     icon: document.getElementById("canvas-payload-icon").value.trim() || "⭐",
@@ -2060,6 +2504,7 @@ async function createTileFromCanvasPanel() {
   lastSeenDashboardRevision = Number(dashboard.revision || 0);
   selectedTileId = payload.tile.id;
   setMessage("Created tile from mirror payload editor.");
+  renderProfileControls();
   renderTileList();
   renderLayoutCanvas();
   renderCanvasPayloadPanel(true);
@@ -2071,6 +2516,7 @@ function selectTile(id) {
   const tile = selectedTile();
   setForm(tile);
   setMessage(tile ? "Editing " + tile.label + " (" + tile.id + ")" : "Tile not found.");
+  renderProfileControls();
   renderTileList();
   renderLayoutCanvas();
   renderCanvasPayloadPanel(true);
@@ -2083,6 +2529,7 @@ async function refreshDashboard() {
   if (selectedTileId && !selectedTile()) {
     selectedTileId = null;
   }
+  renderProfileControls();
   renderTileList();
   renderLayoutCanvas();
   renderCanvasPayloadPanel();
@@ -2100,6 +2547,7 @@ async function pollDashboardUpdates() {
   if (selectedTileId && !selectedTile()) {
     selectedTileId = null;
   }
+  renderProfileControls();
   renderTileList();
   renderLayoutCanvas();
   renderCanvasPayloadPanel();
@@ -2145,6 +2593,7 @@ async function createTile() {
   selectedTileId = payload.tile.id;
   setForm(payload.tile);
   setMessage("Created tile: " + payload.tile.label);
+  renderProfileControls();
   renderTileList();
   renderLayoutCanvas();
   renderCanvasPayloadPanel();
@@ -2173,6 +2622,7 @@ async function updateSelectedTile() {
   lastSeenDashboardRevision = Number(dashboard.revision || 0);
   selectedTileId = payload.tile.id;
   setMessage("Updated tile: " + payload.tile.label);
+  renderProfileControls();
   renderTileList();
   renderLayoutCanvas();
   renderCanvasPayloadPanel();
@@ -2223,6 +2673,7 @@ async function manualRefresh() {
 async function hydrate() {
   document.getElementById("conn").textContent = "${state.connection}";
   renderCanvasThemeOptions();
+  renderProfileControls();
   renderTileList();
   renderLayoutCanvas();
   renderIconPicker();
