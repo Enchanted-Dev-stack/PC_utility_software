@@ -1,4 +1,5 @@
 import type { DashboardLayoutSnapshot } from "../../../../../shared/src/contracts/dashboard/dashboard-tile";
+import { createMobileTileAppearance, type MobileSurfaceAppearance } from "../visual-system/mobile-visual-theme";
 
 export interface MobileDashboardTileModel {
   id: string;
@@ -6,6 +7,7 @@ export interface MobileDashboardTileModel {
   icon: string;
   order: number;
   actionSummary: string;
+  appearance: MobileSurfaceAppearance;
 }
 
 export interface MobileDashboardModel {
@@ -25,7 +27,8 @@ export function createMobileDashboardModel(snapshot: DashboardLayoutSnapshot): M
       label: tile.label,
       icon: tile.icon,
       order: tile.order,
-      actionSummary: summarizeAction(tile.action)
+      actionSummary: summarizeAction(tile.action),
+      appearance: createMobileTileAppearance("neutral")
     }))
   };
 }

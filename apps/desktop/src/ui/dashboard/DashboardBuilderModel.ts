@@ -1,4 +1,5 @@
 import { ACTION_TYPES, MEDIA_CONTROL_COMMANDS, type ActionType, type MediaControlCommand } from "../../../../../shared/src/contracts/actions/action-command";
+import type { VisualSemanticTone } from "../../../../../shared/src/contracts/ui/visual-tokens";
 import type {
   DashboardIconToken,
   DashboardLayoutSnapshot,
@@ -11,6 +12,12 @@ import type {
   DashboardMutationResult
 } from "../../runtime/dashboard/dashboard-layout-service";
 import { DesktopConnectivityRuntime } from "../../runtime/connectivity/desktop-connectivity-runtime";
+import {
+  createDesktopControlPanelAppearance,
+  createDesktopTileAppearance,
+  type DesktopControlPanelAppearance,
+  type DesktopSurfaceAppearance
+} from "../visual-system/desktop-visual-theme";
 
 type MutationKind = "create" | "update" | "delete";
 
@@ -36,12 +43,14 @@ export interface DashboardBuilderTileModel {
   icon: DashboardIconToken;
   order: number;
   action: DashboardTileActionMapping;
+  appearance: DesktopSurfaceAppearance;
 }
 
 export interface DashboardBuilderRuntimeModel {
   tiles: DashboardBuilderTileModel[];
   editor: DashboardBuilderEditorState;
   isDirty: boolean;
+  appearance: DesktopControlPanelAppearance;
 }
 
 export interface DashboardBuilderCreateTileInput {
@@ -232,7 +241,8 @@ function createDashboardBuilderModel(
       label: tile.label,
       icon: tile.icon,
       order: index,
-      action: cloneAction(tile.action)
+      action: cloneAction(tile.action),
+      appearance: toTileAppearance("neutral")
     }));
 
   const selected =
@@ -242,7 +252,8 @@ function createDashboardBuilderModel(
   return {
     tiles: normalizedTiles,
     editor: toEditorState(selected),
-    isDirty
+    isDirty,
+    appearance: createDesktopControlPanelAppearance()
   };
 }
 
@@ -254,8 +265,13 @@ function toBuilderTiles(snapshot: DashboardLayoutSnapshot): DashboardBuilderTile
       label: tile.label,
       icon: tile.icon,
       order: index,
-      action: cloneAction(tile.action)
+      action: cloneAction(tile.action),
+      appearance: toTileAppearance("neutral")
     }));
+}
+
+function toTileAppearance(tone: VisualSemanticTone): DesktopSurfaceAppearance {
+  return createDesktopTileAppearance(tone);
 }
 
 function toCreatePayload(input: DashboardBuilderCreateTileInput): unknown {

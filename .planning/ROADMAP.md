@@ -13,7 +13,7 @@ The roadmap keeps v1.0 runtime behavior intact while raising product quality for
 - [x] **Phase 1: Trusted Connectivity Foundation** - Ship secure discovery, pairing, reconnection, session trust, and device revocation.
 - [x] **Phase 2: Deterministic Action Runtime** - Deliver reliable action execution with explicit feedback and audit history.
 - [x] **Phase 3: Dashboard Builder and Live Preview** - Deliver full tile management workflows and real-time mobile layout preview.
-- [ ] **Phase 4: Unified Visual System** - Establish shared visual language and state semantics across builder and dashboard.
+- [x] **Phase 4: Unified Visual System** - Establish shared visual language and state semantics across builder and dashboard.
 - [ ] **Phase 5: Builder Interaction Clarity** - Remove ambiguous UI states and make editing feedback concise and trustworthy.
 - [ ] **Phase 6: Preview Fidelity and Persistence** - Ensure desktop edits and saved order are faithfully reflected in mobile preview.
 - [ ] **Phase 7: Accessibility and Regression Gates** - Lock keyboard/touch accessibility baseline and pre-release UI regression checks.
@@ -83,7 +83,12 @@ Plans:
   1. User sees consistent typography scale and spacing rhythm in desktop builder, mobile dashboard, and live preview.
   2. User sees the same color/elevation meaning for neutral, success, warning, and error states on both surfaces.
   3. User sees shared component states (default, hover, focus, active, disabled, error) rendered consistently in core flows.
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [x] 04-01-PLAN.md - Establish shared visual tokens, semantic state contracts, and desktop/mobile theme adapters.
+- [x] 04-02-PLAN.md - Apply unified visual semantics to desktop builder/control/preview models with regression coverage.
+- [x] 04-03-PLAN.md - Apply unified visual semantics to mobile surfaces and add cross-surface parity tests.
 
 ### Phase 5: Builder Interaction Clarity
 **Goal**: Users can complete builder workflows confidently with unambiguous affordances and concise feedback.
@@ -125,7 +130,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 1. Trusted Connectivity Foundation | 4/4 | Complete | 2026-02-26 |
 | 2. Deterministic Action Runtime | 5/5 | Complete | 2026-02-26 |
 | 3. Dashboard Builder and Live Preview | 4/4 | Complete | 2026-02-26 |
-| 4. Unified Visual System | 0/TBD | Not started | - |
+| 4. Unified Visual System | 3/3 | Complete | 2026-02-27 |
 | 5. Builder Interaction Clarity | 0/TBD | Not started | - |
 | 6. Preview Fidelity and Persistence | 0/TBD | Not started | - |
 | 7. Accessibility and Regression Gates | 0/TBD | Not started | - |

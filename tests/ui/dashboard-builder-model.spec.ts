@@ -36,6 +36,13 @@ describe("dashboard builder model create update delete", () => {
         }
       }
     });
+    expect(created.model.tiles[0].appearance).toMatchObject({
+      typographyRole: "label",
+      spacingRole: "lg",
+      semanticTone: "neutral"
+    });
+    expect(created.model.tiles[0].appearance.states.focus.focusRingVisible).toBe(true);
+    expect(created.model.appearance.canvasEmphasis).toBe("primary");
 
     const tileId = created.model.tiles[0].id;
     expect(runtime.getDashboardLayout().tiles[0].id).toBe(tileId);

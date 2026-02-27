@@ -1,0 +1,75 @@
+import {
+  VISUAL_TOKENS,
+  type VisualInteractionState,
+  type VisualSemanticTone,
+  type VisualTypographyRole
+} from "../../../../../shared/src/contracts/ui/visual-tokens";
+import {
+  resolveVisualStateBundle,
+  type VisualComponentKind,
+  type VisualStateStyle
+} from "../../../../../shared/src/contracts/ui/visual-states";
+
+export interface DesktopSurfaceAppearance {
+  typographyRole: VisualTypographyRole;
+  spacingRole: "sm" | "md" | "lg";
+  radiusRole: "md" | "lg";
+  semanticTone: VisualSemanticTone;
+  states: Record<VisualInteractionState, VisualStateStyle>;
+}
+
+export interface DesktopControlPanelAppearance {
+  canvasEmphasis: "primary";
+  propertiesEmphasis: "secondary";
+  previewEmphasis: "secondary";
+}
+
+export function createDesktopSurfaceAppearance(
+  component: VisualComponentKind,
+  tone: VisualSemanticTone = "neutral"
+): DesktopSurfaceAppearance {
+  const typographyRole: VisualTypographyRole = component === "banner" ? "body" : "label";
+  const spacingRole = component === "control" ? "md" : "lg";
+
+  return {
+    typographyRole,
+    spacingRole,
+    radiusRole: component === "tile" ? "lg" : "md",
+    semanticTone: tone,
+    states: resolveVisualStateBundle(component, tone).states
+  };
+}
+
+export function createDesktopTileAppearance(
+  tone: VisualSemanticTone = "neutral"
+): DesktopSurfaceAppearance {
+  return createDesktopSurfaceAppearance("tile", tone);
+}
+
+export function createDesktopPreviewTileAppearance(
+  tone: VisualSemanticTone = "neutral"
+): DesktopSurfaceAppearance {
+  return createDesktopSurfaceAppearance("tile", tone);
+}
+
+export function createDesktopControlPanelAppearance(): DesktopControlPanelAppearance {
+  return {
+    canvasEmphasis: "primary",
+    propertiesEmphasis: "secondary",
+    previewEmphasis: "secondary"
+  };
+}
+
+export function mapDesktopToneToSemantic(
+  tone: "positive" | "warning" | "critical"
+): VisualSemanticTone {
+  if (tone === "positive") {
+    return "success";
+  }
+  if (tone === "warning") {
+    return "warning";
+  }
+  return "error";
+}
+
+export const DESKTOP_THEME_VERSION = `${VISUAL_TOKENS.spacing.md}-${VISUAL_TOKENS.radius.md}`;

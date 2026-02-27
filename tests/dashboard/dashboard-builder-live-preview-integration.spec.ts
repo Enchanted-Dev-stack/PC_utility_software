@@ -219,6 +219,11 @@ async function expectBuilderAndPreviewInSync(
   expect(builderModel.tiles.map((tile) => tile.id)).toEqual(previewModel.tiles.map((tile) => tile.id));
   expect(builderModel.tiles.map((tile) => tile.order)).toEqual(expectedContiguousOrders(builderModel.tiles.length));
   expect(previewModel.tiles.map((tile) => tile.order)).toEqual(expectedContiguousOrders(previewModel.tiles.length));
+  expect(builderModel.tiles.map((tile) => tile.appearance.semanticTone)).toEqual(
+    previewModel.tiles.map((tile) => tile.appearance.semanticTone)
+  );
+  expect(builderModel.tiles.every((tile) => tile.appearance.states.focus.focusRingVisible)).toBe(true);
+  expect(previewModel.tiles.every((tile) => tile.appearance.states.focus.focusRingVisible)).toBe(true);
   expect(builderModel.isDirty).toBe(expected.isDirty);
 }
 

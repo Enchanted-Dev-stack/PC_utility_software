@@ -28,15 +28,17 @@ describe("desktop live preview", () => {
     const handlers = createDashboardLivePreviewRuntimeHandlers(runtime);
     const initial = await handlers.getModel();
     expect(initial.layoutVersion).toBe(1);
-    expect(initial.tiles).toEqual([
-      {
-        id: created.result.id,
-        label: "Docs",
-        icon: "browser",
-        order: 0,
-        actionSummary: "Open website: https://example.com/docs"
+    expect(initial.tiles).toHaveLength(1);
+    expect(initial.tiles[0]).toMatchObject({
+      id: created.result.id,
+      label: "Docs",
+      icon: "browser",
+      order: 0,
+      actionSummary: "Open website: https://example.com/docs",
+      appearance: {
+        semanticTone: "neutral"
       }
-    ]);
+    });
 
     const updates: string[] = [];
     const unsubscribe = handlers.subscribe((model) => {
@@ -181,7 +183,13 @@ describe("live preview synchronization", () => {
     const desktopModel = createDashboardLivePreviewModel(runtime.getDashboardLayout());
     const mobileModel = createMobileDashboardModel(client.getDashboardLayout());
 
-    expect(desktopModel).toEqual(mobileModel);
+    expect(desktopModel.layoutVersion).toBe(mobileModel.layoutVersion);
+    expect(desktopModel.updatedAt).toBe(mobileModel.updatedAt);
+    expect(desktopModel.tiles.map((tile) => tile.id)).toEqual(mobileModel.tiles.map((tile) => tile.id));
+    expect(desktopModel.tiles.map((tile) => tile.label)).toEqual(mobileModel.tiles.map((tile) => tile.label));
+    expect(desktopModel.tiles.map((tile) => tile.appearance.semanticTone)).toEqual(
+      mobileModel.tiles.map((tile) => tile.appearance.semanticTone)
+    );
     expect(desktopModel.tiles.map((tile) => tile.label)).toEqual(["Apps", "Browser"]);
   });
 

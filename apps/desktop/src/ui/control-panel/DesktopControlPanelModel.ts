@@ -16,6 +16,13 @@ import {
   type DashboardBuilderRuntimeHandlers,
   type DashboardBuilderRuntimeModel
 } from "../dashboard/DashboardBuilderModel";
+import {
+  createDesktopControlPanelAppearance,
+  createDesktopSurfaceAppearance,
+  mapDesktopToneToSemantic,
+  type DesktopControlPanelAppearance,
+  type DesktopSurfaceAppearance
+} from "../visual-system/desktop-visual-theme";
 import type {
   RuntimeConnectionStatusSnapshot,
   RuntimeStatusListener
@@ -24,9 +31,11 @@ import { DesktopConnectivityRuntime } from "../../runtime/connectivity/desktop-c
 
 export interface DesktopControlPanelRuntimeModel {
   connectionBanner: DesktopConnectionStatusBannerModel;
+  connectionBannerAppearance: DesktopSurfaceAppearance;
   trustedDevicesPanel: TrustedDevicesPanelModel;
   actionHistoryPanel: ActionHistoryPanelModel;
   dashboardBuilder: DashboardBuilderRuntimeModel;
+  appearance: DesktopControlPanelAppearance;
 }
 
 export interface DesktopControlPanelRuntimeModelOptions {
@@ -51,17 +60,23 @@ export async function createDesktopControlPanelRuntimeModel(
     options.actionHistoryLimit ?? 20
   );
   const dashboardBuilder = await createDashboardBuilderRuntimeModel(runtime);
+  const connectionBanner = buildDesktopConnectionStatusBannerModel({
+    previous: connection,
+    current: connection,
+    header,
+    toastMessage: undefined
+  });
 
   return {
-    connectionBanner: buildDesktopConnectionStatusBannerModel({
-      previous: connection,
-      current: connection,
-      header,
-      toastMessage: undefined
-    }),
+    connectionBanner,
+    connectionBannerAppearance: createDesktopSurfaceAppearance(
+      "banner",
+      mapDesktopToneToSemantic(connectionBanner.tone)
+    ),
     trustedDevicesPanel,
     actionHistoryPanel,
-    dashboardBuilder
+    dashboardBuilder,
+    appearance: createDesktopControlPanelAppearance()
   };
 }
 

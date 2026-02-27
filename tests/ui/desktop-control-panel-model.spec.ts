@@ -72,8 +72,12 @@ describe("desktop control panel runtime model", () => {
       label: "Browser",
       icon: "browser"
     });
+    expect(model.dashboardBuilder.tiles[0].appearance.semanticTone).toBe("neutral");
+    expect(model.dashboardBuilder.tiles[0].appearance.states.focus.focusRingVisible).toBe(true);
 
     expect(model.connectionBanner.label).toBeDefined();
+    expect(model.connectionBannerAppearance.semanticTone).toBe("error");
+    expect(model.appearance.canvasEmphasis).toBe("primary");
     expect(model.trustedDevicesPanel.title).toBe("Trusted devices");
     expect(model.actionHistoryPanel.title).toBe("Recent actions");
   });

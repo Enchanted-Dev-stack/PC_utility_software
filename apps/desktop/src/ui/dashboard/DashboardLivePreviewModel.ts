@@ -1,5 +1,6 @@
 import type { DashboardLayoutSnapshot } from "../../../../../shared/src/contracts/dashboard/dashboard-tile";
 import type { DesktopConnectivityRuntime } from "../../runtime/connectivity/desktop-connectivity-runtime";
+import { createDesktopPreviewTileAppearance, type DesktopSurfaceAppearance } from "../visual-system/desktop-visual-theme";
 
 export interface DashboardPreviewTileModel {
   id: string;
@@ -7,6 +8,7 @@ export interface DashboardPreviewTileModel {
   icon: string;
   order: number;
   actionSummary: string;
+  appearance: DesktopSurfaceAppearance;
 }
 
 export interface DashboardLivePreviewModel {
@@ -76,6 +78,7 @@ function toPreviewTiles(snapshot: DashboardLayoutSnapshot): DashboardPreviewTile
       label: tile.label,
       icon: tile.icon,
       order: index,
-      actionSummary: summarizeAction(tile.action)
+      actionSummary: summarizeAction(tile.action),
+      appearance: createDesktopPreviewTileAppearance("neutral")
     }));
 }
