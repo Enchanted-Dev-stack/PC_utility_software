@@ -113,6 +113,7 @@ class _ControlScreenState extends State<ControlScreen> {
       message = 'Pairing approved on server.';
     });
     await _refreshStatus();
+    await _refreshPreview();
   }
 
   Future<void> _revoke() async {
@@ -156,36 +157,24 @@ class _ControlScreenState extends State<ControlScreen> {
     });
   }
 
-  Future<void> _sendAction(String actionType, {String? tileId, String? actionValue}) async {
-    final payload = <String, dynamic>{
-      'deviceId': 'android-usb-device',
-      'actionType': actionType,
-      'tileId': tileId,
-      'actionValue': actionValue,
-    };
-    payload.removeWhere((_, value) => value == null);
-
-    final response = await http.post(
-      _url('/action'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(payload),
-    );
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    if (response.statusCode >= 400) {
-      setState(() {
-        message = 'Action failed: ${body['reason'] ?? response.body}';
-      });
+  Future<void> _openTilesScreen() async {
+    await _run(_refreshPreview);
+    if (!mounted) {
       return;
     }
-    final lifecycle = (body['lifecycle'] as List<dynamic>? ?? []).join(' -> ');
-    final resolved = body['resolved'] as Map<String, dynamic>?;
-    final target = resolved != null ? (resolved['actionValue'] ?? '') : '';
-    setState(() {
-      message = target.toString().isNotEmpty
-          ? 'Action $actionType ($target): $lifecycle'
-          : 'Action $actionType: $lifecycle';
-    });
-    await _refreshStatus();
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TileScreen(
+          baseUrl: baseUrl,
+          initiallyPaired: paired,
+          initialTiles: previewTiles,
+        ),
+      ),
+    );
+
+    await _run(_refreshStatus);
+    await _run(_refreshPreview);
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -212,106 +201,6 @@ class _ControlScreenState extends State<ControlScreen> {
   void dispose() {
     serverController.dispose();
     super.dispose();
-  }
-
-  int _clampSpan(dynamic value, {required int fallback}) {
-    final parsed = int.tryParse('$value');
-    if (parsed == null) {
-      return fallback;
-    }
-    if (parsed < 1) {
-      return 1;
-    }
-    if (parsed > 4) {
-      return 4;
-    }
-    return parsed;
-  }
-
-  String _iconGlyph(Map<String, dynamic> tile) {
-    final raw = '${tile['icon'] ?? ''}'.trim();
-    if (raw.isEmpty) {
-      return '⭐';
-    }
-
-    const map = <String, String>{
-      'language': '🌐',
-      'music_note': '🎵',
-      'apps': '🧩',
-      'link': '🔗',
-      'note': '📝',
-      'bolt': '⚡',
-    };
-
-    final mapped = map[raw.toLowerCase()];
-    return mapped ?? raw;
-  }
-
-  List<_PlacedTile> _buildPlacements(List<Map<String, dynamic>> tiles, {int gridColumns = 4}) {
-    final occupancy = <List<bool>>[];
-    final placements = <_PlacedTile>[];
-
-    void ensureRows(int minRows) {
-      while (occupancy.length < minRows) {
-        occupancy.add(List<bool>.filled(gridColumns, false));
-      }
-    }
-
-    bool canPlace(int row, int col, int spanCols, int spanRows) {
-      ensureRows(row + spanRows);
-      for (var r = row; r < row + spanRows; r++) {
-        for (var c = col; c < col + spanCols; c++) {
-          if (occupancy[r][c]) {
-            return false;
-          }
-        }
-      }
-      return true;
-    }
-
-    void occupy(int row, int col, int spanCols, int spanRows) {
-      ensureRows(row + spanRows);
-      for (var r = row; r < row + spanRows; r++) {
-        for (var c = col; c < col + spanCols; c++) {
-          occupancy[r][c] = true;
-        }
-      }
-    }
-
-    for (final tile in tiles) {
-      final spanCols = _clampSpan(tile['spanCols'], fallback: 2).clamp(1, gridColumns);
-      final spanRows = _clampSpan(tile['spanRows'], fallback: 1);
-      var row = 0;
-      var placed = false;
-
-      while (!placed) {
-        ensureRows(row + spanRows);
-        for (var col = 0; col <= gridColumns - spanCols; col++) {
-          if (!canPlace(row, col, spanCols, spanRows)) {
-            continue;
-          }
-
-          occupy(row, col, spanCols, spanRows);
-          placements.add(
-            _PlacedTile(
-              tile: tile,
-              row: row,
-              col: col,
-              spanCols: spanCols,
-              spanRows: spanRows,
-            ),
-          );
-          placed = true;
-          break;
-        }
-
-        if (!placed) {
-          row += 1;
-        }
-      }
-    }
-
-    return placements;
   }
 
   @override
@@ -469,16 +358,297 @@ class _ControlScreenState extends State<ControlScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Mobile Control Tiles',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tile Controls',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tiles are separated into a dedicated fullscreen view. Synced tiles: ${previewTiles.length}.',
+                      style: const TextStyle(color: Color(0xFF475569)),
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton.icon(
+                      onPressed: () => _run(_openTilesScreen),
+                      icon: const Icon(Icons.dashboard_customize),
+                      label: const Text('Open Tiles Screen'),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'These come from desktop builder preview. Tile size uses the chosen columns x rows.',
-              style: TextStyle(color: Color(0xFF475569)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TileScreen extends StatefulWidget {
+  const TileScreen({
+    super.key,
+    required this.baseUrl,
+    required this.initiallyPaired,
+    required this.initialTiles,
+  });
+
+  final String baseUrl;
+  final bool initiallyPaired;
+  final List<Map<String, dynamic>> initialTiles;
+
+  @override
+  State<TileScreen> createState() => _TileScreenState();
+}
+
+class _TileScreenState extends State<TileScreen> {
+  bool paired = false;
+  String message = 'Open a tile to execute action.';
+  List<Map<String, dynamic>> previewTiles = const [];
+
+  Uri _url(String path) => Uri.parse('${widget.baseUrl}$path');
+
+  Future<void> _refreshStatus() async {
+    final response = await http.get(_url('/status'));
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    setState(() {
+      paired = (body['paired'] as bool?) ?? false;
+    });
+  }
+
+  Future<void> _refreshPreview() async {
+    final response = await http.get(_url('/preview'));
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final tiles = (body['tiles'] as List<dynamic>? ?? [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    setState(() {
+      previewTiles = tiles;
+      message = 'Preview synced: ${tiles.length} tile(s)';
+    });
+  }
+
+  Future<void> _sendAction(String actionType, {String? tileId, String? actionValue}) async {
+    final payload = <String, dynamic>{
+      'deviceId': 'android-usb-device',
+      'actionType': actionType,
+      'tileId': tileId,
+      'actionValue': actionValue,
+    };
+    payload.removeWhere((_, value) => value == null);
+
+    final response = await http.post(
+      _url('/action'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(payload),
+    );
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode >= 400) {
+      setState(() {
+        message = 'Action failed: ${body['reason'] ?? response.body}';
+      });
+      return;
+    }
+
+    final lifecycle = (body['lifecycle'] as List<dynamic>? ?? []).join(' -> ');
+    final resolved = body['resolved'] as Map<String, dynamic>?;
+    final target = resolved != null ? (resolved['actionValue'] ?? '') : '';
+    setState(() {
+      message = target.toString().isNotEmpty
+          ? 'Action $actionType ($target): $lifecycle'
+          : 'Action $actionType: $lifecycle';
+    });
+    await _refreshStatus();
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (e) {
+      setState(() {
+        message = 'Request failed: $e';
+      });
+    }
+  }
+
+  int _clampSpan(dynamic value, {required int fallback}) {
+    final parsed = int.tryParse('$value');
+    if (parsed == null) {
+      return fallback;
+    }
+    if (parsed < 1) {
+      return 1;
+    }
+    if (parsed > 4) {
+      return 4;
+    }
+    return parsed;
+  }
+
+  String _iconGlyph(Map<String, dynamic> tile) {
+    final raw = '${tile['icon'] ?? ''}'.trim();
+    if (raw.isEmpty) {
+      return '⭐';
+    }
+
+    const map = <String, String>{
+      'language': '🌐',
+      'music_note': '🎵',
+      'apps': '🧩',
+      'link': '🔗',
+      'note': '📝',
+      'bolt': '⚡',
+    };
+
+    final mapped = map[raw.toLowerCase()];
+    return mapped ?? raw;
+  }
+
+  List<_PlacedTile> _buildPlacements(List<Map<String, dynamic>> tiles, {int gridColumns = 4}) {
+    final occupancy = <List<bool>>[];
+    final placements = <_PlacedTile>[];
+
+    void ensureRows(int minRows) {
+      while (occupancy.length < minRows) {
+        occupancy.add(List<bool>.filled(gridColumns, false));
+      }
+    }
+
+    bool canPlace(int row, int col, int spanCols, int spanRows) {
+      ensureRows(row + spanRows);
+      for (var r = row; r < row + spanRows; r++) {
+        for (var c = col; c < col + spanCols; c++) {
+          if (occupancy[r][c]) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    void occupy(int row, int col, int spanCols, int spanRows) {
+      ensureRows(row + spanRows);
+      for (var r = row; r < row + spanRows; r++) {
+        for (var c = col; c < col + spanCols; c++) {
+          occupancy[r][c] = true;
+        }
+      }
+    }
+
+    for (final tile in tiles) {
+      final spanCols = _clampSpan(tile['spanCols'], fallback: 2).clamp(1, gridColumns);
+      final spanRows = _clampSpan(tile['spanRows'], fallback: 1);
+      var row = 0;
+      var placed = false;
+
+      while (!placed) {
+        ensureRows(row + spanRows);
+        for (var col = 0; col <= gridColumns - spanCols; col++) {
+          if (!canPlace(row, col, spanCols, spanRows)) {
+            continue;
+          }
+
+          occupy(row, col, spanCols, spanRows);
+          placements.add(
+            _PlacedTile(
+              tile: tile,
+              row: row,
+              col: col,
+              spanCols: spanCols,
+              spanRows: spanRows,
             ),
-            const SizedBox(height: 8),
+          );
+          placed = true;
+          break;
+        }
+
+        if (!placed) {
+          row += 1;
+        }
+      }
+    }
+
+    return placements;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    paired = widget.initiallyPaired;
+    previewTiles = widget.initialTiles;
+    _run(() async {
+      await _refreshStatus();
+      await _refreshPreview();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Control Tiles'),
+        actions: [
+          IconButton(
+            onPressed: () => _run(_refreshPreview),
+            icon: const Icon(Icons.sync),
+            tooltip: 'Sync tiles',
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await _run(_refreshStatus);
+          await _run(_refreshPreview);
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(
+                      paired ? Icons.verified_user : Icons.warning_amber_rounded,
+                      color: paired ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        paired
+                            ? 'Paired with desktop. Tap a tile to run action.'
+                            : 'Not paired. Pair from home screen before using tiles.',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _run(_refreshPreview),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Sync'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             if (previewTiles.isEmpty)
               Card(
                 child: Padding(
@@ -488,7 +658,7 @@ class _ControlScreenState extends State<ControlScreen> {
                     children: const [
                       Text('No tiles yet', style: TextStyle(fontWeight: FontWeight.w700)),
                       SizedBox(height: 6),
-                      Text('Create tiles from desktop builder, then tap "Sync Tiles" here.'),
+                      Text('Create tiles from desktop builder, then return and tap Sync.'),
                     ],
                   ),
                 ),
@@ -574,7 +744,7 @@ class _ControlScreenState extends State<ControlScreen> {
                                         Text(
                                           '${placement.spanCols}x${placement.spanRows}',
                                           style: TextStyle(
-                                            color: Color(0xFF64748B),
+                                            color: const Color(0xFF64748B),
                                             fontSize: compactTile ? 10 : 11,
                                           ),
                                         ),
