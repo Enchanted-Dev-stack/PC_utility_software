@@ -3,12 +3,19 @@ status: diagnosed
 phase: 07-accessibility-and-regression-gates
 source: [07-01-SUMMARY.md, 07-02-SUMMARY.md, 07-03-SUMMARY.md]
 started: 2026-02-27T07:59:58.825Z
-updated: 2026-02-27T08:21:35.248Z
+updated: 2026-02-27T10:02:00.000Z
 ---
 
 ## Current Test
 
 [testing complete]
+
+## Prerequisites (Builder Surface Required)
+
+- Start the desktop runtime and open `http://127.0.0.1:8787/verify/builder-accessibility`.
+- Confirm all builder controls are visible before continuing: Create Tile, Edit First Tile, Reorder Reverse, Delete Last Tile, Save Layout.
+- If the builder controls are missing, stop the run and treat the verification as failed precondition.
+- Do not use `http://127.0.0.1:8787/panel` as the primary entrypoint for keyboard/focus verification.
 
 ## Tests
 
