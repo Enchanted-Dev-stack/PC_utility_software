@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -88,8 +89,151 @@ class _ControlScreenState extends State<ControlScreen> {
     await _refreshPreview();
   }
 
+  bool _isPrivateIpv4(String ip) {
+    final parts = ip.split('.');
+    if (parts.length != 4) {
+      return false;
+    }
+
+    final octets = parts.map(int.tryParse).toList();
+    if (octets.any((value) => value == null)) {
+      return false;
+    }
+
+    final a = octets[0]!;
+    final b = octets[1]!;
+    if (a == 10) {
+      return true;
+    }
+    if (a == 172 && b >= 16 && b <= 31) {
+      return true;
+    }
+    if (a == 192 && b == 168) {
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> _isServerReachable(String candidateBaseUrl) async {
+    try {
+      final response = await http
+          .get(Uri.parse('$candidateBaseUrl/health'))
+          .timeout(const Duration(milliseconds: 450));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String?> _discoverServerUrlOnLan() async {
+    final interfaces = await NetworkInterface.list(
+      type: InternetAddressType.IPv4,
+      includeLoopback: false,
+      includeLinkLocal: false,
+    );
+
+    final localIps = <String>{};
+    final prefixes = <String>{};
+
+    for (final iface in interfaces) {
+      for (final address in iface.addresses) {
+        final ip = address.address;
+        if (!_isPrivateIpv4(ip)) {
+          continue;
+        }
+        localIps.add(ip);
+        final parts = ip.split('.');
+        prefixes.add('${parts[0]}.${parts[1]}.${parts[2]}');
+      }
+    }
+
+    for (final prefix in prefixes) {
+      for (var chunkStart = 1; chunkStart <= 254; chunkStart += 20) {
+        final chunkEnd = min(chunkStart + 19, 254);
+        final batch = <Future<String?>>[];
+
+        for (var host = chunkStart; host <= chunkEnd; host++) {
+          final ip = '$prefix.$host';
+          if (localIps.contains(ip)) {
+            continue;
+          }
+
+          final candidate = 'http://$ip:8787';
+          batch.add(() async {
+            final ok = await _isServerReachable(candidate);
+            return ok ? candidate : null;
+          }());
+        }
+
+        final results = await Future.wait(batch);
+        for (final value in results) {
+          if (value != null) {
+            return value;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _ensureServerReachable() async {
+    if (await _isServerReachable(baseUrl)) {
+      return;
+    }
+
+    final discovered = await _discoverServerUrlOnLan();
+    if (discovered == null) {
+      throw Exception('Connection refused at $baseUrl. Set or auto-find your desktop URL.');
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('server_base_url', discovered);
+    setState(() {
+      baseUrl = discovered;
+      serverController.text = discovered;
+      message = 'Auto-found desktop: $discovered';
+    });
+  }
+
+  Future<void> _autoFindServer() async {
+    final discovered = await _discoverServerUrlOnLan();
+    if (discovered == null) {
+      setState(() {
+        message = 'No desktop runtime found on local network.';
+      });
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('server_base_url', discovered);
+    setState(() {
+      baseUrl = discovered;
+      serverController.text = discovered;
+      message = 'Auto-found desktop: $discovered';
+    });
+    await _refreshStatus();
+    await _refreshPreview();
+  }
+
+  Future<http.Response> _safeGet(String path) async {
+    await _ensureServerReachable();
+    return http.get(_url(path)).timeout(const Duration(seconds: 3));
+  }
+
+  Future<http.Response> _safePost(String path, Map<String, dynamic> body) async {
+    await _ensureServerReachable();
+    return http
+        .post(
+          _url(path),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 3));
+  }
+
   Future<void> _discover() async {
-    final response = await http.get(_url('/discover'));
+    final response = await _safeGet('/discover');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final hosts = (body['hosts'] as List<dynamic>?) ?? [];
     setState(() {
@@ -101,11 +245,7 @@ class _ControlScreenState extends State<ControlScreen> {
   }
 
   Future<void> _pair() async {
-    final response = await http.post(
-      _url('/pair'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'deviceId': 'android-usb-device'}),
-    );
+    final response = await _safePost('/pair', {'deviceId': 'android-usb-device'});
     if (response.statusCode >= 400) {
       setState(() {
         message = 'Pair failed: ${response.body}';
@@ -120,11 +260,7 @@ class _ControlScreenState extends State<ControlScreen> {
   }
 
   Future<void> _revoke() async {
-    final response = await http.post(
-      _url('/revoke'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'deviceId': 'android-usb-device'}),
-    );
+    final response = await _safePost('/revoke', {'deviceId': 'android-usb-device'});
     if (response.statusCode >= 400) {
       setState(() {
         message = 'Revoke rejected: ${response.body}';
@@ -138,7 +274,7 @@ class _ControlScreenState extends State<ControlScreen> {
   }
 
   Future<void> _refreshStatus() async {
-    final response = await http.get(_url('/status'));
+    final response = await _safeGet('/status');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     setState(() {
       status = (body['connection'] as String?) ?? 'unknown';
@@ -149,7 +285,7 @@ class _ControlScreenState extends State<ControlScreen> {
   }
 
   Future<void> _refreshPreview() async {
-    final response = await http.get(_url('/preview'));
+    final response = await _safeGet('/preview');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final tiles = (body['tiles'] as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
@@ -184,8 +320,12 @@ class _ControlScreenState extends State<ControlScreen> {
     try {
       await action();
     } catch (e) {
+      final text = e.toString();
+      final friendly = text.contains('Connection refused')
+          ? 'Connection refused. Use Save URL or Auto Find to point to your desktop.'
+          : 'Request failed: $e';
       setState(() {
-        message = 'Request failed: $e';
+        message = friendly;
       });
     }
   }
@@ -303,6 +443,12 @@ class _ControlScreenState extends State<ControlScreen> {
                           onPressed: () => _run(_refreshStatus),
                           icon: const Icon(Icons.network_check),
                           label: const Text('Test'),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: () => _run(_autoFindServer),
+                          icon: const Icon(Icons.search),
+                          label: const Text('Auto Find'),
                         ),
                       ],
                     ),
