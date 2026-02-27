@@ -62,6 +62,7 @@ export interface DashboardBuilderRuntimeModel {
 
 export interface DashboardBuilderInteractionState {
   selectedTileId?: string;
+  selectionValid: boolean;
   hasSelection: boolean;
   canReorder: boolean;
   canSave: boolean;
@@ -336,6 +337,7 @@ function createDashboardBuilderModel(
     isDirty,
     interaction: {
       selectedTileId: selected?.id,
+      selectionValid: selected !== undefined,
       hasSelection: selected !== undefined,
       canReorder: normalizedTiles.length > 1,
       canSave: isDirty,

@@ -164,6 +164,90 @@ describe("dashboard builder model create update delete", () => {
       }
     });
   });
+
+  it("projects explicit interaction state across builder mutations", async () => {
+    const runtime = createRuntime();
+    const handlers = createDashboardBuilderRuntimeHandlers(runtime);
+
+    const empty = await handlers.getModel();
+    expect(empty.interaction).toEqual({
+      selectedTileId: undefined,
+      selectionValid: false,
+      hasSelection: false,
+      canReorder: false,
+      canSave: false,
+      editorMode: "create"
+    });
+
+    const first = await handlers.createTile({
+      label: "Alpha",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "calculator"
+    });
+    const second = await handlers.createTile({
+      label: "Beta",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+
+    const afterCreate = await handlers.getModel();
+    expect(afterCreate.interaction.hasSelection).toBe(true);
+    expect(afterCreate.interaction.selectionValid).toBe(true);
+    expect(afterCreate.interaction.canReorder).toBe(true);
+    expect(afterCreate.interaction.editorMode).toBe("edit");
+    expect(afterCreate.interaction.canSave).toBe(false);
+
+    const moved = await handlers.moveTile({ fromIndex: 1, toIndex: 0 });
+    expect(moved.ok).toBe(true);
+    expect(moved.model.interaction.canSave).toBe(true);
+
+    const saved = await handlers.saveLayout();
+    expect(saved.ok).toBe(true);
+    expect(saved.model.interaction.canSave).toBe(false);
+  });
+
+  it("keeps interaction state coherent for invalid reorder, missing update, and delete fallback", async () => {
+    const runtime = createRuntime();
+    const handlers = createDashboardBuilderRuntimeHandlers(runtime);
+
+    const first = await handlers.createTile({
+      label: "One",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "calculator"
+    });
+    const second = await handlers.createTile({
+      label: "Two",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+
+    const selectedId = second.model.interaction.selectedTileId;
+    const invalidMove = await handlers.moveTile({ fromIndex: 5, toIndex: 0 });
+    expect(invalidMove.ok).toBe(false);
+    expect(invalidMove.statusLabel).toBe("Tile reorder is invalid");
+    expect(invalidMove.model.interaction.selectedTileId).toBe(selectedId);
+
+    const missingUpdate = await handlers.updateTile({
+      tileId: "missing",
+      label: "Nope"
+    });
+    expect(missingUpdate.ok).toBe(false);
+    expect(missingUpdate.model.interaction.selectedTileId).toBe(selectedId);
+
+    const deleted = await handlers.deleteTile({ tileId: selectedId as string });
+    expect(deleted.ok).toBe(true);
+    expect(deleted.model.tiles).toHaveLength(1);
+    expect(deleted.model.interaction.selectedTileId).toBe(deleted.model.tiles[0].id);
+    expect(deleted.model.interaction.editorMode).toBe("edit");
+  });
 });
 
 function createRuntime(): DesktopConnectivityRuntime {
