@@ -312,6 +312,71 @@ describe("live preview updates", () => {
       isDirty: false
     });
   });
+
+  it("keeps create-edit-reorder-save-reopen journey synchronized with follow-up edits", async () => {
+    const persistence = new InMemoryDashboardLayoutPersistence();
+    const runtimeA = createRuntime(persistence);
+    const builderA = createDashboardBuilderRuntimeHandlers(runtimeA);
+    const previewA = createDashboardLivePreviewRuntimeHandlers(runtimeA);
+
+    await builderA.createTile({
+      label: "Browser",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+    const music = await builderA.createTile({
+      label: "Music",
+      icon: "media",
+      actionType: "media_control",
+      command: "play_pause"
+    });
+    expect(music.ok).toBe(true);
+
+    const edited = await builderA.updateTile({
+      tileId: music.model.tiles[1].id,
+      label: "Playback",
+      actionType: "media_control",
+      command: "next"
+    });
+    expect(edited.ok).toBe(true);
+
+    const reordered = await builderA.moveTile({ fromIndex: 1, toIndex: 0 });
+    expect(reordered.ok).toBe(true);
+    const saved = await builderA.saveLayout();
+    expect(saved.ok).toBe(true);
+
+    await expectBuilderAndPreviewInSync(builderA, previewA, {
+      labels: ["Playback", "Browser"],
+      isDirty: false
+    });
+
+    const runtimeB = createRuntime(persistence);
+    const builderB = createDashboardBuilderRuntimeHandlers(runtimeB);
+    const previewB = createDashboardLivePreviewRuntimeHandlers(runtimeB);
+
+    await expectBuilderAndPreviewInSync(builderB, previewB, {
+      labels: ["Playback", "Browser"],
+      isDirty: false
+    });
+
+    const created = await builderB.createTile({
+      label: "Apps",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "notepad"
+    });
+    expect(created.ok).toBe(true);
+
+    const builderModel = await builderB.getModel();
+    const previewModel = await previewB.getModel();
+    expect(builderModel.tiles.map((tile) => tile.label)).toEqual(["Playback", "Browser", "Apps"]);
+    expect(previewModel.tiles.map((tile) => tile.actionSummary)).toEqual([
+      "Media control: next",
+      "Open website: https://example.com",
+      "Open app: notepad"
+    ]);
+  });
 });
 
 async function expectBuilderAndPreviewInSync(
