@@ -6,6 +6,7 @@ const PORT = Number(process.env.PORT || 8787);
 const ACCESSIBILITY_VERIFICATION_ROUTE = "/verify/builder-accessibility";
 const MIN_TILE_SPAN = 1;
 const MAX_TILE_SPAN = 4;
+const ACTION_DEDUP_WINDOW_MS = 300;
 const ICON_CHOICES = [
   "⭐",
   "🔥",
@@ -31,6 +32,8 @@ const BUILDER_SURFACE_CONTROL_IDS = [
   "delete-last-tile",
   "save-layout",
 ];
+const recentActionByDevice = new Map();
+const inFlightActions = new Set();
 
 const state = {
   paired: false,
@@ -164,6 +167,29 @@ function dashboardSnapshot() {
     lastSavedAt: state.dashboard.lastSavedAt,
     tiles: state.dashboard.tiles,
   };
+}
+
+function shouldDedupAction(deviceId, actionType) {
+  const key = `${deviceId}:${actionType}`;
+  if (inFlightActions.has(key)) {
+    return true;
+  }
+
+  const now = Date.now();
+  const last = recentActionByDevice.get(key) || 0;
+  if (now - last < ACTION_DEDUP_WINDOW_MS) {
+    return true;
+  }
+
+  recentActionByDevice.set(key, now);
+  inFlightActions.add(key);
+  return false;
+}
+
+function markActionComplete(deviceId, actionType) {
+  const key = `${deviceId}:${actionType}`;
+  inFlightActions.delete(key);
+  recentActionByDevice.set(key, Date.now());
 }
 
 function readBody(req) {
@@ -301,24 +327,108 @@ function launchDetached(command, args) {
   });
 }
 
-async function executeDesktopAction(actionType, actionValue) {
-  const runPowerShell = (script) =>
-    launchDetached("powershell.exe", [
-      "-NoLogo",
-      "-NoProfile",
-      "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-Command",
-      script,
-    ]);
+function runCommand(command, args, { timeoutMs = 8_000 } = {}) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let stderr = "";
 
-  const sendMediaKey = (keyName) => {
+    const settle = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(result);
+    };
+
+    const child = spawn(command, args, {
+      shell: false,
+      detached: false,
+      windowsHide: true,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      settle({ ok: false, detail: "timeout" });
+    }, timeoutMs);
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+      if (stderr.length > 2_000) {
+        stderr = stderr.slice(0, 2_000);
+      }
+    });
+
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      const code = typeof error?.code === "string" ? error.code : "spawn_error";
+      settle({ ok: false, detail: code });
+    });
+
+    child.once("close", (exitCode) => {
+      clearTimeout(timer);
+      if (typeof exitCode === "number" && exitCode !== 0) {
+        const detail = stderr.trim() || `exit_code_${exitCode}`;
+        settle({ ok: false, detail });
+        return;
+      }
+      settle({ ok: true, detail: "ok" });
+    });
+  });
+}
+
+function runPowerShellScript(script, options = {}) {
+  const encodedScript = Buffer.from(script, "utf16le").toString("base64");
+  const baseArgs = [
+    "-NoLogo",
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-EncodedCommand",
+    encodedScript,
+  ];
+
+  if (options.detached) {
+    return launchDetached("powershell.exe", baseArgs);
+  }
+
+  return runCommand("powershell.exe", baseArgs, {
+    timeoutMs: options.timeoutMs,
+  });
+}
+
+async function executeDesktopAction(actionType, actionValue) {
+  const sendVirtualKey = (virtualKeyCode, repeats = 1) => {
     if (process.platform !== "win32") {
       return { ok: false, detail: "unsupported_platform" };
     }
-    return runPowerShell(
-      `$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('{${keyName}}')`,
+
+    const code = Number(virtualKeyCode);
+    const repeatCount = Math.max(1, Math.min(20, Math.round(Number(repeats) || 1)));
+    if (!Number.isFinite(code)) {
+      return { ok: false, detail: "invalid_virtual_key" };
+    }
+
+    return runPowerShellScript(
+      `if (-not ("RemoteKeySender" -as [type])) {
+  Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RemoteKeySender {
+  [DllImport("user32.dll", SetLastError = true)]
+  public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+}
+"@
+}
+for ($i = 0; $i -lt ${repeatCount}; $i++) {
+  [RemoteKeySender]::keybd_event(${code}, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 20
+  [RemoteKeySender]::keybd_event(${code}, 0, 0x0002, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 30
+}`,
+      { timeoutMs: 6_000 },
     );
   };
 
@@ -351,27 +461,27 @@ async function executeDesktopAction(actionType, actionValue) {
   }
 
   if (actionType === "media_play_pause") {
-    return sendMediaKey("MEDIA_PLAY_PAUSE");
+    return sendVirtualKey(0xB3);
   }
 
   if (actionType === "media_next") {
-    return sendMediaKey("MEDIA_NEXT_TRACK");
+    return sendVirtualKey(0xB0);
   }
 
   if (actionType === "media_previous") {
-    return sendMediaKey("MEDIA_PREV_TRACK");
+    return sendVirtualKey(0xB1);
   }
 
   if (actionType === "volume_up") {
-    return sendMediaKey("VOLUME_UP");
+    return sendVirtualKey(0xAF, 5);
   }
 
   if (actionType === "volume_down") {
-    return sendMediaKey("VOLUME_DOWN");
+    return sendVirtualKey(0xAE, 5);
   }
 
   if (actionType === "volume_mute") {
-    return sendMediaKey("VOLUME_MUTE");
+    return sendVirtualKey(0xAD);
   }
 
   if (actionType === "system_lock") {
@@ -385,7 +495,25 @@ async function executeDesktopAction(actionType, actionValue) {
     if (process.platform !== "win32") {
       return { ok: false, detail: "unsupported_platform" };
     }
-    return runPowerShell("Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)");
+    return runPowerShellScript(
+      `if (-not ("RemotePowerState" -as [type])) {
+  Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RemotePowerState {
+  [DllImport("powrprof.dll", SetLastError = true)]
+  public static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
+}
+"@
+}
+[bool]$ok = [RemotePowerState]::SetSuspendState($false, $true, $false)
+if (-not $ok) {
+  Start-Process -FilePath "rundll32.exe" -ArgumentList "powrprof.dll,SetSuspendState 0,1,0" -WindowStyle Hidden | Out-Null
+}
+exit 0`,
+      { timeoutMs: 6_000 },
+    );
   }
 
   if (actionType === "system_shutdown") {
@@ -406,7 +534,9 @@ async function executeDesktopAction(actionType, actionValue) {
     if (process.platform !== "win32") {
       return { ok: false, detail: "unsupported_platform" };
     }
-    return launchDetached("taskmgr.exe", []);
+    return runPowerShellScript('Start-Process -FilePath "taskmgr.exe" -WindowStyle Normal', {
+      timeoutMs: 6_000,
+    });
   }
 
   return { ok: false, detail: "unsupported_action" };
@@ -671,13 +801,12 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const execution = await executeDesktopAction(actionType, actionValue);
-      if (!execution.ok) {
-        const failed = logAction(deviceId, actionType, "failed", execution.detail || "execution_failed");
-        sendJson(res, 500, {
-          ok: false,
-          reason: "execution_failed",
-          action: failed,
+      if (shouldDedupAction(deviceId, actionType)) {
+        const skipped = logAction(deviceId, actionType, "skipped", "deduplicated");
+        sendJson(res, 200, {
+          ok: true,
+          lifecycle: ["received", "deduplicated"],
+          action: skipped,
           resolved: {
             tileId: tile?.id || null,
             actionType,
@@ -687,21 +816,41 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const detail = actionValue ? `executed:${actionValue}` : "executed";
-      const success = logAction(deviceId, actionType, "success", detail);
-      state.lastReason = `action:${actionType}`;
-      logEvent("action", `Action executed: ${actionType}`);
-      sendJson(res, 200, {
-        ok: true,
-        lifecycle: ["received", "running", "success"],
-        action: success,
-        resolved: {
-          tileId: tile?.id || null,
-          actionType,
-          actionValue,
-        },
-      });
-      return;
+      try {
+        const execution = await executeDesktopAction(actionType, actionValue);
+        if (!execution.ok) {
+          const failed = logAction(deviceId, actionType, "failed", execution.detail || "execution_failed");
+          sendJson(res, 500, {
+            ok: false,
+            reason: "execution_failed",
+            action: failed,
+            resolved: {
+              tileId: tile?.id || null,
+              actionType,
+              actionValue,
+            },
+          });
+          return;
+        }
+
+        const detail = actionValue ? `executed:${actionValue}` : "executed";
+        const success = logAction(deviceId, actionType, "success", detail);
+        state.lastReason = `action:${actionType}`;
+        logEvent("action", `Action executed: ${actionType}`);
+        sendJson(res, 200, {
+          ok: true,
+          lifecycle: ["received", "running", "success"],
+          action: success,
+          resolved: {
+            tileId: tile?.id || null,
+            actionType,
+            actionValue,
+          },
+        });
+        return;
+      } finally {
+        markActionComplete(deviceId, actionType);
+      }
     }
 
     if (

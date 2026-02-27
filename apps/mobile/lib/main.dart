@@ -129,11 +129,18 @@ class _ControlScreenState extends State<ControlScreen> {
   }
 
   Future<String?> _discoverServerUrlOnLan() async {
-    final interfaces = await NetworkInterface.list(
-      type: InternetAddressType.IPv4,
-      includeLoopback: false,
-      includeLinkLocal: false,
-    );
+    List<NetworkInterface> interfaces;
+    try {
+      interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLoopback: false,
+        includeLinkLocal: false,
+      );
+    } on SocketException {
+      return null;
+    } catch (_) {
+      return null;
+    }
 
     final localIps = <String>{};
     final prefixes = <String>{};
@@ -452,20 +459,20 @@ class _ControlScreenState extends State<ControlScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
                         FilledButton.icon(
                           onPressed: () => _run(_saveServerUrl),
                           icon: const Icon(Icons.save),
                           label: const Text('Save URL'),
                         ),
-                        const SizedBox(width: 8),
                         OutlinedButton.icon(
                           onPressed: () => _run(_refreshStatus),
                           icon: const Icon(Icons.network_check),
                           label: const Text('Test'),
                         ),
-                        const SizedBox(width: 8),
                         OutlinedButton.icon(
                           onPressed: () => _run(_autoFindServer),
                           icon: const Icon(Icons.search),
@@ -585,6 +592,8 @@ class TileScreen extends StatefulWidget {
 
 class _TileScreenState extends State<TileScreen> {
   static const String _themePrefKey = 'tile_theme_preset';
+  static const double _shakeThresholdG = 2.0;
+  static const Duration _shakeCooldown = Duration(milliseconds: 1200);
 
   bool paired = false;
   List<Map<String, dynamic>> previewTiles = const [];
@@ -618,12 +627,12 @@ class _TileScreenState extends State<TileScreen> {
     _shakeSubscription = accelerometerEventStream().listen((event) {
       final gForce = sqrt((event.x * event.x) + (event.y * event.y) + (event.z * event.z)) /
           9.80665;
-      if (gForce < 2.65) {
+      if (gForce < _shakeThresholdG) {
         return;
       }
 
       final now = DateTime.now();
-      if (_lastShakeAt != null && now.difference(_lastShakeAt!) < const Duration(seconds: 2)) {
+      if (_lastShakeAt != null && now.difference(_lastShakeAt!) < _shakeCooldown) {
         return;
       }
       _lastShakeAt = now;
@@ -1627,7 +1636,7 @@ class _TileVisualTheme {
 const List<_TileVisualTheme> _themes = [
   _TileVisualTheme(
     id: 'neo_brutal',
-    name: 'Neo Brutalism',
+    name: 'Neo Brutalist Grid V1',
     background: Color(0xFFFFF27D),
     border: Color(0xFF111827),
     text: Color(0xFF0F172A),
@@ -1649,27 +1658,44 @@ const List<_TileVisualTheme> _themes = [
     darkStatusIcons: true,
   ),
   _TileVisualTheme(
-    id: 'glass',
-    name: 'Glass',
-    background: Color(0xE6FFFFFF),
-    border: Color(0xA0FFFFFF),
-    text: Color(0xFF0F172A),
-    meta: Color(0xFF334155),
-    iconTint: Color(0x1A0F172A),
-    radius: 18,
-    borderWidth: 1.5,
+    id: 'premium_glow',
+    name: 'Premium Glow Grid V2',
+    background: Color(0xFF000000),
+    border: Color(0xFF1A1A1A),
+    text: Color(0xFFFFFFFF),
+    meta: Color(0xFF6B7280),
+    iconTint: Color(0x1400E5FF),
+    radius: 10,
+    borderWidth: 1,
     shadows: [
       BoxShadow(
-        color: Color(0x1A0F172A),
-        offset: Offset(0, 10),
-        blurRadius: 22,
+        color: Color(0x2200E5FF),
+        offset: Offset(0, 0),
+        blurRadius: 10,
       ),
     ],
+    gridGap: 0,
+    screenPadding: 0,
+    screenBackground: Color(0xFF000000),
+    statusBarColor: Color(0xFF000000),
+    darkStatusIcons: false,
+  ),
+  _TileVisualTheme(
+    id: 'amoled_control_center',
+    name: 'AMOLED Control Center',
+    background: Color(0xFF000000),
+    border: Color(0xFF1A1A1A),
+    text: Color(0xFFE2E8F0),
+    meta: Color(0xFF64748B),
+    iconTint: Color(0x1400E5FF),
+    radius: 0,
+    borderWidth: 1,
+    shadows: [],
     gridGap: 10,
     screenPadding: 10,
-    screenBackground: Color(0xFFEFF4FF),
-    statusBarColor: Color(0xFFEFF4FF),
-    darkStatusIcons: true,
+    screenBackground: Color(0xFF000000),
+    statusBarColor: Color(0xFF000000),
+    darkStatusIcons: false,
   ),
   _TileVisualTheme(
     id: 'midnight',

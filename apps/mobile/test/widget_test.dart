@@ -13,7 +13,7 @@ void main() {
   testWidgets('renders test app shell', (WidgetTester tester) async {
     await tester.pumpWidget(const MobileControlApp());
 
-    expect(find.text('PC Remote Mobile Test'), findsOneWidget);
-    expect(find.textContaining('Server:'), findsOneWidget);
+    expect(find.text('PC Remote'), findsOneWidget);
+    expect(find.text('Desktop Server URL'), findsOneWidget);
   });
 }
