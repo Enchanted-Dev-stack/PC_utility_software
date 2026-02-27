@@ -865,66 +865,72 @@ const server = http.createServer(async (req, res) => {
       const html = `<!doctype html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>PC Remote Builder</title>
 <style>
-:root{--bg:#f4f6fb;--panel:#ffffff;--text:#0f172a;--muted:#475569;--line:#dbe2ea;--accent:#0ea5e9;--accent-soft:#e0f2fe;--danger:#dc2626;--ok:#16a34a;--shadow:0 10px 30px rgba(15,23,42,.08)}
+:root{--bg:#02090d;--panel:#05131a;--panel-2:#081b24;--text:#b7ffd8;--muted:#5fa28a;--line:#17493a;--accent:#00ff88;--accent-2:#38d6ff;--danger:#ff5f7a;--ok:#adff2f;--shadow:0 0 0 1px rgba(0,255,136,.08),0 18px 40px rgba(0,0,0,.55)}
 *{box-sizing:border-box}
-body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:linear-gradient(180deg,#f8fbff,#f4f6fb);color:var(--text)}
-.shell{max-width:1200px;margin:0 auto;padding:24px}
-.top{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:20px}
-.title h1{font-size:26px;margin:0 0 6px}
-.title p{margin:0;color:var(--muted)}
-.badge{display:inline-block;background:var(--accent-soft);color:#0369a1;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600}
-.status{display:flex;gap:10px;flex-wrap:wrap}
-.pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px}
+body{margin:0;font-family:"JetBrains Mono","Cascadia Mono","Fira Code",Consolas,monospace;color:var(--text);background:radial-gradient(1200px 560px at 20% -10%,rgba(56,214,255,.18),transparent 60%),radial-gradient(900px 420px at 95% 0,rgba(0,255,136,.14),transparent 52%),linear-gradient(180deg,#02090d,#01060a)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,rgba(255,255,255,.03) 0,rgba(255,255,255,.03) 1px,transparent 2px,transparent 4px);opacity:.16;z-index:0}
+.shell{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:24px}
+.top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;margin-bottom:20px;border:1px solid var(--line);background:linear-gradient(145deg,#06161f,#071017);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+.title h1{font-size:30px;line-height:1.05;margin:0 0 8px;color:var(--accent);text-shadow:0 0 12px rgba(0,255,136,.35)}
+.title p{margin:0;color:var(--muted);max-width:720px}
+.badge{display:inline-block;background:rgba(0,255,136,.09);color:var(--accent);padding:4px 10px;border-radius:999px;border:1px solid rgba(0,255,136,.34);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.status{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.pill b{color:var(--text)}
 .grid{display:grid;grid-template-columns:1.1fr 1.3fr;gap:16px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px}
-.card h2{margin:0 0 14px;font-size:18px}
-.muted{color:var(--muted);font-size:13px}
+.card{background:linear-gradient(155deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px}
+.card h2{margin:0 0 14px;font-size:17px;color:#b7f8ff;letter-spacing:.07em;text-transform:uppercase}
+.muted{color:var(--muted);font-size:12px;line-height:1.45}
 .list{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow:auto}
-.tile-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 12px;cursor:pointer}
-.tile-item:hover{border-color:#bae6fd;background:#f8fcff}
-.tile-item.active{border-color:var(--accent);background:#f0f9ff}
-.tile-item.drag-over{border-color:#0284c7;background:#e0f2fe}
-.tile-main{font-weight:600}
-.tile-sub{font-size:12px;color:var(--muted)}
+.tile-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;background:#041018;color:var(--text);padding:10px 12px;cursor:pointer}
+.tile-item:hover{border-color:rgba(0,255,136,.6);background:#072128}
+.tile-item.active{border-color:var(--accent);background:#08261f;box-shadow:0 0 0 1px rgba(0,255,136,.28) inset}
+.tile-item.drag-over{border-color:var(--accent-2);background:#082333}
+.tile-main{font-weight:700}
+.tile-sub{font-size:11px;color:var(--muted)}
 .icon-picker{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-bottom:10px}
-.icon-choice{height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.icon-choice.active{border-color:var(--accent);background:#e0f2fe}
-.canvas-shell{margin-top:10px;border:1px solid #1f2937;background:#0b1220;border-radius:26px;padding:14px;display:flex;justify-content:center}
-.canvas-phone{position:relative;width:360px;min-height:640px;border-radius:20px;overflow:hidden;border:1px solid #111827;background:#f6f8fc}
+.icon-choice{height:36px;border:1px solid var(--line);border-radius:8px;background:#06111a;color:var(--text);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-choice.active{border-color:var(--accent);background:#0a2320;box-shadow:0 0 0 1px rgba(0,255,136,.25) inset}
+.canvas-shell{margin-top:10px;border:1px solid #0f3342;background:linear-gradient(180deg,#050d15,#09161f);border-radius:26px;padding:14px;display:flex;justify-content:center;box-shadow:inset 0 0 0 1px rgba(56,214,255,.16)}
+.canvas-phone{position:relative;width:360px;min-height:640px;border-radius:20px;overflow:hidden;border:1px solid #123847;background:#051019;box-shadow:0 0 0 1px rgba(56,214,255,.2),0 0 28px rgba(0,0,0,.55)}
 .canvas-tile{position:absolute;overflow:hidden;display:flex;align-items:flex-end;cursor:grab;user-select:none;transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease}
-.canvas-tile.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(14,165,233,.18) inset}
+.canvas-tile.active{border-color:var(--accent)!important;box-shadow:0 0 0 1px rgba(0,255,136,.4) inset}
 .canvas-tile.dragging{opacity:.45}
-.canvas-tile.drag-over{outline:2px dashed #0284c7;outline-offset:2px}
-.canvas-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.1;pointer-events:none}
+.canvas-tile.drag-over{outline:2px dashed var(--accent-2);outline-offset:2px}
+.canvas-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.12;pointer-events:none}
 .canvas-content{position:relative;z-index:2}
 .canvas-label{font-weight:700;line-height:1.2}
 .canvas-meta{font-size:11px}
-.canvas-size{position:absolute;top:8px;left:8px;z-index:3;background:#e0f2fe;color:#0369a1;font-size:11px;border-radius:999px;padding:2px 8px}
-.resize-handle{position:absolute;right:8px;bottom:8px;width:14px;height:14px;border-radius:4px;border:1px solid #94a3b8;background:#f8fafc;cursor:nwse-resize;z-index:4}
-.canvas-theme{min-width:220px}
-label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
-input:focus,select:focus,button:focus{outline:3px solid rgba(14,165,233,.2);outline-offset:1px}
+.canvas-size{position:absolute;top:8px;left:8px;z-index:3;background:#082c3e;color:#93ecff;font-size:11px;border-radius:999px;border:1px solid #19516b;padding:2px 8px}
+.resize-handle{position:absolute;right:8px;bottom:8px;width:14px;height:14px;border-radius:4px;border:1px solid #3d7182;background:#071f2b;cursor:nwse-resize;z-index:4}
+.canvas-theme{min-width:260px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase}
+input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#041019;color:var(--text);font-family:inherit}
+input::placeholder{color:#4f8b77}
+input:focus,select:focus,button:focus{outline:2px solid rgba(0,255,136,.38);outline-offset:1px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-button{border:0;border-radius:10px;padding:10px 12px;font-weight:600;cursor:pointer;background:#e2e8f0;color:#0f172a}
-button.primary{background:var(--accent);color:#fff}
-button.danger{background:#fee2e2;color:#991b1b}
-button.ghost{background:#f8fafc;border:1px solid var(--line)}
-.meta{margin-top:10px;font-size:13px;color:var(--muted)}
-pre{background:#0b1220;color:#e2e8f0;border-radius:10px;padding:12px;overflow:auto;font-size:12px;max-height:250px}
-table{width:100%;border-collapse:collapse;font-size:13px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+button{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-weight:700;cursor:pointer;background:#071822;color:var(--text);font-family:inherit;letter-spacing:.03em;text-transform:uppercase;font-size:12px}
+button:hover{border-color:rgba(0,255,136,.6);background:#0a2328}
+button.primary{background:linear-gradient(180deg,#00c76b,#00a85a);border-color:#00c76b;color:#001b0f}
+button.primary:hover{background:linear-gradient(180deg,#00dd76,#00b864)}
+button.danger{background:linear-gradient(180deg,#ff5f7a,#e94563);border-color:#ff5f7a;color:#24040c}
+button.ghost{background:#05131a;border:1px solid var(--line)}
+.meta{margin-top:10px;font-size:12px;color:var(--muted)}
+pre{background:#030d14;color:#9dffc7;border-radius:10px;border:1px solid #154536;padding:12px;overflow:auto;font-size:12px;max-height:250px}
+code{color:#93ecff}
+table{width:100%;border-collapse:collapse;font-size:12px}
 th,td{border-bottom:1px solid var(--line);padding:8px;text-align:left}
-th{color:var(--muted);font-weight:600}
-@media (max-width: 900px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
+th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+@media (max-width: 900px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.status{justify-content:flex-start}}
 </style>
 </head><body>
 <div class="shell">
   <div class="top">
     <div class="title">
-      <span class="badge">Builder Surface</span>
-      <h1>Desktop Dashboard Builder</h1>
-      <p>Create, edit, reorder, and save mobile control tiles with live preview.</p>
+      <span class="badge">Intel Node // Builder Surface</span>
+      <h1>PC Remote Command Console</h1>
+      <p>Compose handset control payloads, edit live tiles, and monitor action telemetry from a terminal-grade operations surface.</p>
     </div>
     <div class="status">
       <div class="pill">Connection: <b id="conn">${state.connection}</b></div>
@@ -933,14 +939,14 @@ th{color:var(--muted);font-weight:600}
     </div>
   </div>
   <div class="card" style="margin-bottom:16px">
-    <h2 style="margin-bottom:8px">Phone Connection URL</h2>
-    <div class="muted">Use this base URL in the mobile app settings (no adb reverse required):</div>
+    <h2 style="margin-bottom:8px">Uplink Endpoint</h2>
+    <div class="muted">Use this base URL in the mobile app settings:</div>
     <pre style="margin-top:8px">${mobileUrl}</pre>
   </div>
 
   <div class="grid">
     <section class="card">
-      <h2>Tiles</h2>
+      <h2>Tile Registry</h2>
       <div class="muted">Select a tile to edit. Keyboard: Tab to controls, Enter to activate.</div>
       <div id="tile-list" class="list" aria-label="tile list"></div>
       <div class="actions" style="margin-top:12px">
@@ -951,7 +957,7 @@ th{color:var(--muted);font-weight:600}
     </section>
 
     <section class="card">
-      <h2>Tile Editor</h2>
+      <h2>Payload Editor</h2>
       <div class="row">
         <div>
           <label for="tile-label">Label</label>
@@ -1000,7 +1006,7 @@ th{color:var(--muted);font-weight:600}
     </section>
 
     <section class="card" style="grid-column:1 / -1">
-      <h2>Layout Canvas</h2>
+      <h2>Handset Mirror Canvas</h2>
       <div class="muted">Phone-accurate preview. Drag to reorder, drag handle to resize, scroll wheel to nudge size (Shift = width), and double-click a tile to edit values.</div>
       <div class="actions" style="margin-top:8px">
         <label for="canvas-theme" style="margin:0">Preview Theme</label>
@@ -1012,13 +1018,13 @@ th{color:var(--muted);font-weight:600}
     </section>
 
     <section class="card" style="grid-column:1 / -1">
-      <h2>Live Preview Payload</h2>
+      <h2>/preview Wire Payload</h2>
       <div class="muted">What the mobile app reads from <code>/preview</code>.</div>
       <pre id="preview-json"></pre>
     </section>
 
     <section class="card" style="grid-column:1 / -1">
-      <h2>Action History</h2>
+      <h2>Action Telemetry</h2>
       <div class="actions" style="margin-bottom:8px">
         <button class="ghost" onclick="manualRefresh()">Refresh Data</button>
       </div>
