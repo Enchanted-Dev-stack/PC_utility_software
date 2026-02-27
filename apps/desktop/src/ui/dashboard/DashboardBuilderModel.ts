@@ -11,6 +11,11 @@ import type {
   DashboardMutationError,
   DashboardMutationResult
 } from "../../runtime/dashboard/dashboard-layout-service";
+import {
+  createDashboardBuilderFeedback,
+  type DashboardBuilderFeedback,
+  type DashboardBuilderFeedbackOperation
+} from "../../../../../shared/src/contracts/dashboard/dashboard-builder-feedback";
 import { DesktopConnectivityRuntime } from "../../runtime/connectivity/desktop-connectivity-runtime";
 import {
   createDesktopControlPanelAppearance,
@@ -50,7 +55,17 @@ export interface DashboardBuilderRuntimeModel {
   tiles: DashboardBuilderTileModel[];
   editor: DashboardBuilderEditorState;
   isDirty: boolean;
+  interaction: DashboardBuilderInteractionState;
+  latestFeedback?: DashboardBuilderFeedback;
   appearance: DesktopControlPanelAppearance;
+}
+
+export interface DashboardBuilderInteractionState {
+  selectedTileId?: string;
+  hasSelection: boolean;
+  canReorder: boolean;
+  canSave: boolean;
+  editorMode: "create" | "edit";
 }
 
 export interface DashboardBuilderCreateTileInput {
@@ -88,6 +103,7 @@ export interface DashboardBuilderMoveTileInput {
 export interface DashboardBuilderMutationResult {
   ok: boolean;
   statusLabel: string;
+  feedback: DashboardBuilderFeedback;
   model: DashboardBuilderRuntimeModel;
   code?: DashboardValidationCode | "not_found" | "invalid_reorder";
 }
@@ -112,6 +128,7 @@ export function createDashboardBuilderRuntimeHandlers(
   runtime: DesktopConnectivityRuntime
 ): DashboardBuilderRuntimeHandlers {
   let selectedTileId: string | undefined;
+  let latestFeedback: DashboardBuilderFeedback | undefined;
   let savedOrderIds = toBuilderTiles(runtime.getDashboardLayout()).map((tile) => tile.id);
 
   const syncFromRuntime = (
@@ -125,28 +142,54 @@ export function createDashboardBuilderRuntimeHandlers(
       savedOrderIds = toBuilderTiles(snapshot).map((tile) => tile.id);
     }
     selectedTileId = nextSelectedTileId;
-    return createModelFromRuntimeSnapshot(snapshot);
+    return withLatestFeedback(createModelFromRuntimeSnapshot(snapshot));
   };
 
   const createModelFromRuntimeSnapshot = (snapshot: DashboardLayoutSnapshot): DashboardBuilderRuntimeModel => {
     const tiles = toBuilderTiles(snapshot);
     const isDirty = !hasSameTileOrderIds(tiles, savedOrderIds);
-    return createDashboardBuilderModel(tiles, selectedTileId, isDirty);
+    return createDashboardBuilderModel(tiles, selectedTileId, isDirty, latestFeedback);
   };
 
   const currentModel = (): DashboardBuilderRuntimeModel => {
-    return createModelFromRuntimeSnapshot(runtime.getDashboardLayout());
+    return withLatestFeedback(createModelFromRuntimeSnapshot(runtime.getDashboardLayout()));
+  };
+
+  const withLatestFeedback = (model: DashboardBuilderRuntimeModel): DashboardBuilderRuntimeModel => {
+    return {
+      ...model,
+      latestFeedback
+    };
+  };
+
+  const withMutationFeedback = (
+    result: DashboardBuilderMutationResult
+  ): DashboardBuilderMutationResult => {
+    latestFeedback = result.feedback;
+    return {
+      ...result,
+      model: {
+        ...result.model,
+        latestFeedback
+      }
+    };
   };
 
   const moveTile = (input: DashboardBuilderMoveTileInput): DashboardBuilderMutationResult => {
     const currentTiles = toBuilderTiles(runtime.getDashboardLayout());
     if (!isValidMoveIndex(input.fromIndex, currentTiles.length) || !isValidMoveIndex(input.toIndex, currentTiles.length)) {
-      return {
+      return withMutationFeedback({
         ok: false,
         statusLabel: "Tile reorder is invalid",
+        feedback: createDashboardBuilderFeedback({
+          operation: "reorder",
+          outcome: "failure",
+          message: "Tile reorder is invalid",
+          code: "invalid_reorder"
+        }),
         code: "invalid_reorder",
         model: currentModel()
-      };
+      });
     }
 
     const movedTileId = currentTiles[input.fromIndex].id;
@@ -155,36 +198,52 @@ export function createDashboardBuilderRuntimeHandlers(
       toIndex: input.toIndex
     });
     if (!reordered.ok) {
-      return mapMutationError(reordered, currentModel());
+      return withMutationFeedback(mapMutationError("reorder", reordered, currentModel()));
     }
 
     selectedTileId = movedTileId;
 
-    return {
+    return withMutationFeedback({
       ok: true,
       statusLabel: "Tile order updated",
+      feedback: createDashboardBuilderFeedback({
+        operation: "reorder",
+        outcome: "success",
+        message: "Tile order updated",
+        targetTileId: movedTileId
+      }),
       model: currentModel()
-    };
+    });
   };
 
   const saveLayout = (): DashboardBuilderMutationResult => {
     const snapshot = runtime.getDashboardLayout();
     const dirty = !hasSameTileOrderIds(toBuilderTiles(snapshot), savedOrderIds);
     if (!dirty) {
-      return {
+      return withMutationFeedback({
         ok: true,
         statusLabel: "Layout already saved",
+        feedback: createDashboardBuilderFeedback({
+          operation: "save",
+          outcome: "noop",
+          message: "Layout already saved"
+        }),
         model: currentModel()
-      };
+      });
     }
 
     savedOrderIds = toBuilderTiles(snapshot).map((tile) => tile.id);
 
-    return {
+    return withMutationFeedback({
       ok: true,
       statusLabel: "Layout saved",
+      feedback: createDashboardBuilderFeedback({
+        operation: "save",
+        outcome: "success",
+        message: "Layout saved"
+      }),
       model: syncFromRuntime(selectedTileId)
-    };
+    });
   };
 
   return {
@@ -195,19 +254,41 @@ export function createDashboardBuilderRuntimeHandlers(
     createTile: async (input) => {
       const created = runtime.createDashboardTile(toCreatePayload(input));
       const nextSelectedTileId = created.ok ? created.result.id : selectedTileId;
-      return mapMutationResult("create", created, syncFromRuntime(nextSelectedTileId, { resetDirty: true }));
+      const model = created.ok
+        ? syncFromRuntime(nextSelectedTileId, { resetDirty: true })
+        : currentModel();
+      return withMutationFeedback(
+        mapMutationResult("create", created, model, created.ok ? created.result.id : undefined)
+      );
     },
     updateTile: async (input) => {
       const snapshot = runtime.getDashboardLayout();
+      const existing = snapshot.tiles.find((tile) => tile.id === input.tileId);
       const updated = runtime.updateDashboardTile(
         input.tileId,
-        toUpdatePayload(input, snapshot.tiles.find((tile) => tile.id === input.tileId))
+        toUpdatePayload(input, existing)
       );
-      return mapMutationResult("update", updated, syncFromRuntime(input.tileId, { resetDirty: true }));
+      const model = updated.ok
+        ? syncFromRuntime(input.tileId, { resetDirty: true })
+        : currentModel();
+      return withMutationFeedback(mapMutationResult("update", updated, model, input.tileId));
     },
     deleteTile: async (input) => {
+      const tilesBeforeDelete = toBuilderTiles(runtime.getDashboardLayout());
+      const deletedIndex = tilesBeforeDelete.findIndex((tile) => tile.id === input.tileId);
       const deleted = runtime.deleteDashboardTile(input.tileId);
-      return mapMutationResult("delete", deleted, syncFromRuntime(undefined, { resetDirty: true }));
+      let nextSelectedAfterDelete: string | undefined;
+      if (deleted.ok) {
+        const tilesAfterDelete = toBuilderTiles(runtime.getDashboardLayout());
+        if (tilesAfterDelete.length > 0) {
+          const fallbackIndex = deletedIndex < 0 ? 0 : Math.min(deletedIndex, tilesAfterDelete.length - 1);
+          nextSelectedAfterDelete = tilesAfterDelete[fallbackIndex].id;
+        }
+      }
+      const model = deleted.ok
+        ? syncFromRuntime(nextSelectedAfterDelete, { resetDirty: true })
+        : currentModel();
+      return withMutationFeedback(mapMutationResult("delete", deleted, model, input.tileId));
     },
     moveTile: async (input) => moveTile(input),
     saveLayout: async (nextSelectedTileId) => {
@@ -222,17 +303,19 @@ export function createDashboardBuilderRuntimeHandlers(
 export function createDashboardBuilderModelFromSnapshot(
   snapshot: DashboardLayoutSnapshot,
   selectedTileId?: string,
-  isDirty = false
+  isDirty = false,
+  latestFeedback?: DashboardBuilderFeedback
 ): DashboardBuilderRuntimeModel {
   const tiles = toBuilderTiles(snapshot);
 
-  return createDashboardBuilderModel(tiles, selectedTileId, isDirty);
+  return createDashboardBuilderModel(tiles, selectedTileId, isDirty, latestFeedback);
 }
 
 function createDashboardBuilderModel(
   tiles: DashboardBuilderTileModel[],
   selectedTileId?: string,
-  isDirty = false
+  isDirty = false,
+  latestFeedback?: DashboardBuilderFeedback
 ): DashboardBuilderRuntimeModel {
   const normalizedTiles = [...tiles]
     .sort((left, right) => left.order - right.order)
@@ -245,14 +328,20 @@ function createDashboardBuilderModel(
       appearance: toTileAppearance("neutral")
     }));
 
-  const selected =
-    normalizedTiles.find((tile) => tile.id === selectedTileId) ??
-    (selectedTileId ? undefined : normalizedTiles[0]);
+  const selected = normalizedTiles.find((tile) => tile.id === selectedTileId) ?? normalizedTiles[0];
 
   return {
     tiles: normalizedTiles,
     editor: toEditorState(selected),
     isDirty,
+    interaction: {
+      selectedTileId: selected?.id,
+      hasSelection: selected !== undefined,
+      canReorder: normalizedTiles.length > 1,
+      canSave: isDirty,
+      editorMode: selected ? "edit" : "create"
+    },
+    latestFeedback,
     appearance: createDesktopControlPanelAppearance()
   };
 }
@@ -439,17 +528,25 @@ function toActionEditorState(action: DashboardTileActionMapping): DashboardBuild
 function mapMutationResult<T>(
   kind: MutationKind,
   result: DashboardMutationResult<T>,
-  model: DashboardBuilderRuntimeModel
+  model: DashboardBuilderRuntimeModel,
+  targetTileId?: string
 ): DashboardBuilderMutationResult {
   if (result.ok) {
+    const statusLabel = successStatusLabel(kind);
     return {
       ok: true,
-      statusLabel: successStatusLabel(kind),
+      statusLabel,
+      feedback: createDashboardBuilderFeedback({
+        operation: toFeedbackOperation(kind),
+        outcome: "success",
+        message: statusLabel,
+        targetTileId
+      }),
       model
     };
   }
 
-  return mapMutationError(result, model);
+  return mapMutationError(toFeedbackOperation(kind), result, model, targetTileId);
 }
 
 function successStatusLabel(kind: MutationKind): string {
@@ -463,13 +560,22 @@ function successStatusLabel(kind: MutationKind): string {
 }
 
 function mapMutationError(
+  operation: DashboardBuilderFeedbackOperation,
   error: DashboardMutationError,
-  model: DashboardBuilderRuntimeModel
+  model: DashboardBuilderRuntimeModel,
+  targetTileId?: string
 ): DashboardBuilderMutationResult {
   if (error.reason === "invalid_reorder") {
     return {
       ok: false,
       statusLabel: "Tile reorder is invalid",
+      feedback: createDashboardBuilderFeedback({
+        operation,
+        outcome: "failure",
+        message: "Tile reorder is invalid",
+        code: "invalid_reorder",
+        targetTileId
+      }),
       code: "invalid_reorder",
       model
     };
@@ -479,17 +585,36 @@ function mapMutationError(
     return {
       ok: false,
       statusLabel: "Tile not found",
+      feedback: createDashboardBuilderFeedback({
+        operation,
+        outcome: "failure",
+        message: "Tile not found",
+        code: "not_found",
+        targetTileId
+      }),
       code: "not_found",
       model
     };
   }
 
+  const statusLabel = toValidationStatusLabel(error);
   return {
     ok: false,
-    statusLabel: toValidationStatusLabel(error),
+    statusLabel,
+    feedback: createDashboardBuilderFeedback({
+      operation,
+      outcome: "failure",
+      message: statusLabel,
+      code: error.code,
+      targetTileId
+    }),
     code: error.code,
     model
   };
+}
+
+function toFeedbackOperation(kind: MutationKind): DashboardBuilderFeedbackOperation {
+  return kind;
 }
 
 function toValidationStatusLabel(error: DashboardMutationError): string {

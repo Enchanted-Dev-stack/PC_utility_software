@@ -22,7 +22,12 @@ describe("dashboard builder model create update delete", () => {
 
     expect(created).toMatchObject({
       ok: true,
-      statusLabel: "Tile created"
+      statusLabel: "Tile created",
+      feedback: {
+        operation: "create",
+        outcome: "success",
+        message: "Tile created"
+      }
     });
     expect(created.model.tiles).toHaveLength(1);
     expect(runtime.getDashboardLayout().tiles).toHaveLength(1);
@@ -57,7 +62,12 @@ describe("dashboard builder model create update delete", () => {
 
     expect(updated).toMatchObject({
       ok: true,
-      statusLabel: "Tile updated"
+      statusLabel: "Tile updated",
+      feedback: {
+        operation: "update",
+        outcome: "success",
+        message: "Tile updated"
+      }
     });
     expect(updated.model.tiles[0].id).toBe(tileId);
     expect(updated.model.editor).toMatchObject({
@@ -73,7 +83,12 @@ describe("dashboard builder model create update delete", () => {
     const deleted = await handlers.deleteTile({ tileId });
     expect(deleted).toMatchObject({
       ok: true,
-      statusLabel: "Tile deleted"
+      statusLabel: "Tile deleted",
+      feedback: {
+        operation: "delete",
+        outcome: "success",
+        message: "Tile deleted"
+      }
     });
     expect(deleted.model.tiles).toEqual([]);
     expect(runtime.getDashboardLayout().tiles).toEqual([]);
@@ -93,7 +108,13 @@ describe("dashboard builder model create update delete", () => {
     expect(invalidCreate).toMatchObject({
       ok: false,
       statusLabel: "Tile label is required",
-      code: "invalid_label"
+      code: "invalid_label",
+      feedback: {
+        operation: "create",
+        outcome: "failure",
+        message: "Tile label is required",
+        code: "invalid_label"
+      }
     });
 
     const missingTile = await handlers.updateTile({
@@ -103,7 +124,13 @@ describe("dashboard builder model create update delete", () => {
     expect(missingTile).toMatchObject({
       ok: false,
       statusLabel: "Tile not found",
-      code: "not_found"
+      code: "not_found",
+      feedback: {
+        operation: "update",
+        outcome: "failure",
+        message: "Tile not found",
+        code: "not_found"
+      }
     });
   });
 

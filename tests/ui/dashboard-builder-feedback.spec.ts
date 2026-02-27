@@ -2,6 +2,8 @@ import {
   createDashboardBuilderFeedback,
   createDashboardBuilderFeedbackIdentity
 } from "../../shared/src/contracts/dashboard/dashboard-builder-feedback";
+import { DesktopConnectivityRuntime } from "../../apps/desktop/src/runtime/connectivity/desktop-connectivity-runtime";
+import { createDashboardBuilderRuntimeHandlers } from "../../apps/desktop/src/ui/dashboard/DashboardBuilderModel";
 
 describe("dashboard builder feedback contract", () => {
   it("creates a deterministic identity for equivalent outcomes", () => {
@@ -52,3 +54,42 @@ describe("dashboard builder feedback contract", () => {
     });
   });
 });
+
+describe("dashboard builder mutation feedback", () => {
+  it("emits deterministic mutation feedback identities for equivalent outcomes", async () => {
+    const runtime = createRuntime();
+    const handlers = createDashboardBuilderRuntimeHandlers(runtime);
+
+    const missingFirst = await handlers.updateTile({
+      tileId: "tile-missing",
+      label: "Name"
+    });
+    const missingSecond = await handlers.updateTile({
+      tileId: "tile-missing",
+      label: "Name"
+    });
+
+    expect(missingFirst.ok).toBe(false);
+    expect(missingSecond.ok).toBe(false);
+    expect(missingFirst.feedback.dedupeKey).toBe(missingSecond.feedback.dedupeKey);
+    expect(missingFirst.feedback.message).toBe("Tile not found");
+  });
+});
+
+function createRuntime(): DesktopConnectivityRuntime {
+  return new DesktopConnectivityRuntime({
+    hostId: "host-primary",
+    hostName: "Office-PC",
+    hostDeviceId: "desktop-1",
+    hostIpAddress: "192.168.1.10",
+    now: createTickingNow()
+  });
+}
+
+function createTickingNow(): () => string {
+  let tick = 0;
+  return () => {
+    tick += 1;
+    return `2026-02-27T14:00:00.${String(tick).padStart(3, "0")}Z`;
+  };
+}
