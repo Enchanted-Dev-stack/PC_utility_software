@@ -1,94 +1,81 @@
-# Requirements: PC Remote Control Studio
+# Requirements: PC Remote Control Studio (Milestone v1.1)
 
 **Defined:** 2026-02-27
 **Core Value:** A user can tap custom tiles on their phone and instantly trigger the right action on their PC through a polished, easy-to-configure interface.
 
-## v1 Requirements
+## Baseline (Validated in v1.0)
 
-Requirements for initial release. Each maps to roadmap phases.
+- Connectivity and trust lifecycle across LAN is implemented and verified.
+- Deterministic action runtime (open app/url/media + feedback + history) is implemented and verified.
+- Dashboard CRUD and live preview sync foundation is implemented and verified.
 
-### Connectivity & Trust
+## v1.1 Requirements
 
-- [x] **CNCT-01**: User can discover their PC host on the same Wi-Fi network or connect via manual IP fallback.
-- [x] **CNCT-02**: User can complete one-time pairing between phone and PC using an explicit trust flow (code or QR).
-- [x] **CNCT-03**: User can reconnect to a previously trusted PC without repeating initial pairing.
-- [x] **CNCT-04**: User can see live connection status (connected, reconnecting, disconnected) in both phone and PC interfaces.
+### Visual System
 
-### Dashboard Builder
+- [ ] **VIS-01**: User sees consistent typography, spacing, and component styling across desktop builder and mobile dashboard.
+- [ ] **VIS-02**: User sees coherent color/elevation semantics where status meaning is consistent on both surfaces.
+- [ ] **VIS-03**: User sees shared component states (default/hover/focus/active/disabled/error) applied consistently in core flows.
 
-- [x] **DASH-01**: User can create a new tile in the PC control panel with label and icon.
-- [x] **DASH-02**: User can edit an existing tile's label, icon, and mapped action.
-- [x] **DASH-03**: User can reorder tiles and save layout changes.
-- [x] **DASH-04**: User can delete tiles from the layout.
-- [x] **DASH-05**: User can preview the mobile dashboard layout in real time from the PC control panel.
+### Interaction Quality
 
-### Action Execution
+- [ ] **UX-01**: User receives clear interaction feedback for tile create/edit/reorder/delete/save actions in the desktop builder.
+- [ ] **UX-02**: User can complete common builder tasks without ambiguous UI states or unclear affordances.
+- [ ] **UX-03**: User sees concise success/failure messaging without noisy or duplicated feedback.
 
-- [x] **ACTN-01**: User can trigger an "open application" action from a phone tile and the linked app opens on PC.
-- [x] **ACTN-02**: User can trigger an "open website" action from a phone tile and the linked URL opens on PC.
-- [x] **ACTN-03**: User can trigger media control actions (play/pause, next, previous, volume) from phone and PC responds.
-- [x] **ACTN-04**: User receives execution feedback for each action (received, running, success/failure).
+### Preview Fidelity
 
-### Safety & Observability
+- [ ] **PRV-01**: User sees mobile preview updates that visually match desktop builder edits for label/icon/order/spacing.
+- [ ] **PRV-02**: User can reorder and save on desktop and observe the same order persist in mobile preview after refresh/reopen.
+- [ ] **PRV-03**: User does not observe visible visual drift between desktop preview and mobile rendering for supported tile states.
 
-- [x] **SAFE-01**: User can view recent action history with timestamps and outcome on the PC control panel.
-- [x] **SAFE-02**: User can remove a trusted phone device from the PC control panel.
-- [x] **SAFE-03**: System only accepts action requests from paired and authenticated devices.
+### Accessibility and QA Gates
 
-## v2 Requirements
+- [ ] **A11Y-01**: User can navigate primary desktop builder controls with visible keyboard focus and sufficient contrast.
+- [ ] **A11Y-02**: User can read and interact with critical UI text/controls on desktop and mobile at accessible sizes/targets.
+- [ ] **QA-01**: Team can run automated visual/accessibility checks that detect UI regressions before release.
 
-Deferred to future release. Tracked but not in current roadmap.
+## Future Requirements (Deferred)
 
-### Advanced Customization
+### Theming and Personalization
 
-- **CSTM-01**: User can apply themes and visual style presets to dashboard pages.
-- **CSTM-02**: User can create profile-based dashboard pages (work, media, gaming) and switch quickly.
-- **CSTM-03**: User can create safe multi-step macros from curated action types.
+- **THEME-01**: User can switch between multiple visual themes/presets.
+- **MOTION-01**: User can customize animation intensity beyond reduced-motion baseline.
 
-### Transport & Reach
+### Extended QA Tooling
 
-- **TRNS-01**: User can use Bluetooth-assisted discovery/pairing when Wi-Fi discovery fails.
-- **TRNS-02**: User can control PC remotely over internet relay with hardened security controls.
+- **QA-02**: Team can run full matrix screenshot diffing across devices/browsers per PR.
 
-## Out of Scope
-
-Explicitly excluded. Documented to prevent scope creep.
+## Out of Scope (v1.1)
 
 | Feature | Reason |
 |---------|--------|
-| Arbitrary script execution in v1 | High security risk and support burden before permission model exists |
-| Plugin marketplace in v1 | Requires signing/review ecosystem not needed for MVP validation |
-| Full remote desktop streaming | Different product category and major complexity expansion |
-| Multi-user role management | Not required for first-user MVP validation |
+| New transport capabilities | Milestone focuses on UI/UX polish, not connectivity expansion |
+| New action types/plugins | Functional scope already validated in v1.0; polish milestone should stay UX-focused |
+| Full architecture rewrite | High risk and unnecessary for UI quality goals |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CNCT-01 | Phase 1 | Complete |
-| CNCT-02 | Phase 1 | Complete |
-| CNCT-03 | Phase 1 | Complete |
-| CNCT-04 | Phase 1 | Complete |
-| DASH-01 | Phase 3 | Complete |
-| DASH-02 | Phase 3 | Complete |
-| DASH-03 | Phase 3 | Complete |
-| DASH-04 | Phase 3 | Complete |
-| DASH-05 | Phase 3 | Complete |
-| ACTN-01 | Phase 2 | Complete |
-| ACTN-02 | Phase 2 | Complete |
-| ACTN-03 | Phase 2 | Complete |
-| ACTN-04 | Phase 2 | Complete |
-| SAFE-01 | Phase 2 | Complete |
-| SAFE-02 | Phase 1 | Complete |
-| SAFE-03 | Phase 1 | Complete |
+| VIS-01 | Phase TBD | Pending |
+| VIS-02 | Phase TBD | Pending |
+| VIS-03 | Phase TBD | Pending |
+| UX-01 | Phase TBD | Pending |
+| UX-02 | Phase TBD | Pending |
+| UX-03 | Phase TBD | Pending |
+| PRV-01 | Phase TBD | Pending |
+| PRV-02 | Phase TBD | Pending |
+| PRV-03 | Phase TBD | Pending |
+| A11Y-01 | Phase TBD | Pending |
+| A11Y-02 | Phase TBD | Pending |
+| QA-01 | Phase TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 16 total
-- Mapped to phases: 16
-- Unmapped: 0
+- milestone requirements: 12 total
+- Mapped to phases: 0
+- Unmapped: 12 ⚠️
 
 ---
 *Requirements defined: 2026-02-27*
-*Last updated: 2026-02-27 after roadmap mapping*
+*Last updated: 2026-02-27 after milestone v1.1 requirements definition*
