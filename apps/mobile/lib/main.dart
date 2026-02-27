@@ -164,6 +164,106 @@ class _ControlScreenState extends State<ControlScreen> {
     _run(_refreshPreview);
   }
 
+  int _clampSpan(dynamic value, {required int fallback}) {
+    final parsed = int.tryParse('$value');
+    if (parsed == null) {
+      return fallback;
+    }
+    if (parsed < 1) {
+      return 1;
+    }
+    if (parsed > 4) {
+      return 4;
+    }
+    return parsed;
+  }
+
+  String _iconGlyph(Map<String, dynamic> tile) {
+    final raw = '${tile['icon'] ?? ''}'.trim();
+    if (raw.isEmpty) {
+      return '⭐';
+    }
+
+    const map = <String, String>{
+      'language': '🌐',
+      'music_note': '🎵',
+      'apps': '🧩',
+      'link': '🔗',
+      'note': '📝',
+      'bolt': '⚡',
+    };
+
+    final mapped = map[raw.toLowerCase()];
+    return mapped ?? raw;
+  }
+
+  List<_PlacedTile> _buildPlacements(List<Map<String, dynamic>> tiles, {int gridColumns = 4}) {
+    final occupancy = <List<bool>>[];
+    final placements = <_PlacedTile>[];
+
+    void ensureRows(int minRows) {
+      while (occupancy.length < minRows) {
+        occupancy.add(List<bool>.filled(gridColumns, false));
+      }
+    }
+
+    bool canPlace(int row, int col, int spanCols, int spanRows) {
+      ensureRows(row + spanRows);
+      for (var r = row; r < row + spanRows; r++) {
+        for (var c = col; c < col + spanCols; c++) {
+          if (occupancy[r][c]) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    void occupy(int row, int col, int spanCols, int spanRows) {
+      ensureRows(row + spanRows);
+      for (var r = row; r < row + spanRows; r++) {
+        for (var c = col; c < col + spanCols; c++) {
+          occupancy[r][c] = true;
+        }
+      }
+    }
+
+    for (final tile in tiles) {
+      final spanCols = _clampSpan(tile['spanCols'], fallback: 2).clamp(1, gridColumns);
+      final spanRows = _clampSpan(tile['spanRows'], fallback: 1);
+      var row = 0;
+      var placed = false;
+
+      while (!placed) {
+        ensureRows(row + spanRows);
+        for (var col = 0; col <= gridColumns - spanCols; col++) {
+          if (!canPlace(row, col, spanCols, spanRows)) {
+            continue;
+          }
+
+          occupy(row, col, spanCols, spanRows);
+          placements.add(
+            _PlacedTile(
+              tile: tile,
+              row: row,
+              col: col,
+              spanCols: spanCols,
+              spanRows: spanRows,
+            ),
+          );
+          placed = true;
+          break;
+        }
+
+        if (!placed) {
+          row += 1;
+        }
+      }
+    }
+
+    return placements;
+  }
+
   @override
   Widget build(BuildContext context) {
     final connected = status == 'connected';
@@ -279,7 +379,7 @@ class _ControlScreenState extends State<ControlScreen> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'These come from desktop builder preview. Tap any tile to trigger action.',
+              'These come from desktop builder preview. Tile size uses the chosen columns x rows.',
               style: TextStyle(color: Color(0xFF475569)),
             ),
             const SizedBox(height: 8),
@@ -298,69 +398,128 @@ class _ControlScreenState extends State<ControlScreen> {
                 ),
               )
             else
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: previewTiles.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.15,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                ),
-                itemBuilder: (context, index) {
-                  final tile = previewTiles[index];
-                  final label = '${tile['label'] ?? 'Tile'}';
-                  final actionType = '${tile['actionType'] ?? 'open_url'}';
-                  final actionValue = '${tile['actionValue'] ?? ''}';
-                  final tileId = '${tile['id'] ?? ''}';
-                  return Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: paired
-                          ? () => _run(
-                                () => _sendAction(
-                                  actionType,
-                                  tileId: tileId,
-                                  actionValue: actionValue,
-                                ),
-                              )
-                          : null,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${index + 1}',
-                              style: const TextStyle(color: Color(0xFF64748B)),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const gridColumns = 4;
+                  const gap = 10.0;
+                  const rowHeight = 96.0;
+                  final placements = _buildPlacements(previewTiles, gridColumns: gridColumns);
+
+                  var totalRows = 1;
+                  for (final placement in placements) {
+                    final endRow = placement.row + placement.spanRows;
+                    if (endRow > totalRows) {
+                      totalRows = endRow;
+                    }
+                  }
+
+                  final cellWidth =
+                      (constraints.maxWidth - ((gridColumns - 1) * gap)) / gridColumns;
+                  final totalHeight = (totalRows * rowHeight) + ((totalRows - 1) * gap);
+
+                  return SizedBox(
+                    height: totalHeight,
+                    child: Stack(
+                      children: placements.map((placement) {
+                        final tile = placement.tile;
+                        final label = '${tile['label'] ?? 'Tile'}';
+                        final actionType = '${tile['actionType'] ?? 'open_url'}';
+                        final actionValue = '${tile['actionValue'] ?? ''}';
+                        final tileId = '${tile['id'] ?? ''}';
+                        final iconGlyph = _iconGlyph(tile);
+                        final width =
+                            (placement.spanCols * cellWidth) + ((placement.spanCols - 1) * gap);
+                        final height =
+                            (placement.spanRows * rowHeight) + ((placement.spanRows - 1) * gap);
+                        final left = placement.col * (cellWidth + gap);
+                        final top = placement.row * (rowHeight + gap);
+
+                        return Positioned(
+                          left: left,
+                          top: top,
+                          width: width,
+                          height: height,
+                          child: Card(
+                            elevation: 1,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            const Spacer(),
-                            Text(
-                              label,
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              actionType,
-                              style: const TextStyle(color: Color(0xFF475569), fontSize: 12),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (actionValue.isNotEmpty)
-                              Text(
-                                actionValue,
-                                style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: paired
+                                  ? () => _run(
+                                        () => _sendAction(
+                                          actionType,
+                                          tileId: tileId,
+                                          actionValue: actionValue,
+                                        ),
+                                      )
+                                  : null,
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: Center(
+                                      child: Text(
+                                        iconGlyph,
+                                        style: TextStyle(
+                                          fontSize: height * 0.52,
+                                          color: const Color(0xFF1E293B).withOpacity(0.09),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${placement.spanCols}x${placement.spanRows}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF64748B),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          label,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 16,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          actionType,
+                                          style: const TextStyle(
+                                            color: Color(0xFF475569),
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (actionValue.isNotEmpty)
+                                          Text(
+                                            actionValue,
+                                            style: const TextStyle(
+                                              color: Color(0xFF64748B),
+                                              fontSize: 11,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                          ],
-                        ),
-                      ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   );
                 },
@@ -376,4 +535,20 @@ class _ControlScreenState extends State<ControlScreen> {
       ),
     );
   }
+}
+
+class _PlacedTile {
+  const _PlacedTile({
+    required this.tile,
+    required this.row,
+    required this.col,
+    required this.spanCols,
+    required this.spanRows,
+  });
+
+  final Map<String, dynamic> tile;
+  final int row;
+  final int col;
+  final int spanCols;
+  final int spanRows;
 }

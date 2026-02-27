@@ -3,6 +3,8 @@ const { spawn } = require("node:child_process");
 
 const PORT = Number(process.env.PORT || 8787);
 const ACCESSIBILITY_VERIFICATION_ROUTE = "/verify/builder-accessibility";
+const MIN_TILE_SPAN = 1;
+const MAX_TILE_SPAN = 4;
 const BUILDER_SURFACE_CONTROL_IDS = [
   "create-tile",
   "edit-first-tile",
@@ -27,17 +29,21 @@ const state = {
         id: "tile-1",
         order: 0,
         label: "Browser",
-        icon: "language",
+        icon: "🌐",
         actionType: "open_url",
         actionValue: "https://example.com",
+        spanCols: 2,
+        spanRows: 1,
       },
       {
         id: "tile-2",
         order: 1,
         label: "Music",
-        icon: "music_note",
+        icon: "🎵",
         actionType: "media_play_pause",
         actionValue: "",
+        spanCols: 2,
+        spanRows: 1,
       },
     ],
   },
@@ -114,7 +120,22 @@ function normalizeTiles() {
   state.dashboard.tiles = state.dashboard.tiles
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((tile, index) => ({ ...tile, order: index }));
+    .map((tile, index) => ({
+      ...tile,
+      order: index,
+      icon: String(tile.icon || "⬜"),
+      spanCols: normalizeSpan(tile.spanCols, 2),
+      spanRows: normalizeSpan(tile.spanRows, 1),
+    }));
+}
+
+function normalizeSpan(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+
+  return Math.max(MIN_TILE_SPAN, Math.min(MAX_TILE_SPAN, Math.round(numeric)));
 }
 
 function dashboardSnapshot() {
@@ -388,9 +409,11 @@ const server = http.createServer(async (req, res) => {
         id,
         order: state.dashboard.tiles.length,
         label: String(body.label || `Tile ${state.dashboard.tiles.length + 1}`),
-        icon: String(body.icon || "apps"),
+        icon: String(body.icon || "⭐"),
         actionType,
         actionValue: String(body.actionValue || defaultActionValue(actionType)),
+        spanCols: normalizeSpan(body.spanCols, 2),
+        spanRows: normalizeSpan(body.spanRows, 1),
       };
       state.dashboard.tiles.push(tile);
       state.dashboard.isDirty = true;
@@ -412,6 +435,14 @@ const server = http.createServer(async (req, res) => {
       tile.actionType = String(body.actionType || tile.actionType);
       tile.actionValue = String(
         body.actionValue === undefined ? tile.actionValue : body.actionValue,
+      );
+      tile.spanCols = normalizeSpan(
+        body.spanCols === undefined ? tile.spanCols : body.spanCols,
+        tile.spanCols || 2,
+      );
+      tile.spanRows = normalizeSpan(
+        body.spanRows === undefined ? tile.spanRows : body.spanRows,
+        tile.spanRows || 1,
       );
       state.dashboard.isDirty = true;
       logEvent("dashboard", `Tile edited: ${tile.label}`);
@@ -630,7 +661,17 @@ th{color:var(--muted);font-weight:600}
         </div>
         <div>
           <label for="tile-icon">Icon</label>
-          <input id="tile-icon" type="text" placeholder="e.g. music_note"/>
+          <input id="tile-icon" type="text" placeholder="e.g. 🎵 or 🔥"/>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="tile-cols">Tile Columns</label>
+          <input id="tile-cols" type="number" min="1" max="4" value="2"/>
+        </div>
+        <div>
+          <label for="tile-rows">Tile Rows</label>
+          <input id="tile-rows" type="number" min="1" max="4" value="1"/>
         </div>
       </div>
       <div style="margin-bottom:10px">
@@ -708,7 +749,7 @@ function renderTileList() {
     .map((tile) => {
       const active = tile.id === selectedTileId ? " active" : "";
       return '<button class="tile-item' + active + '" data-tile-id="' + escapeHtml(tile.id) + '">' +
-        '<span><div class="tile-main">' + escapeHtml(tile.label) + '</div><div class="tile-sub">' + escapeHtml(tile.icon) + ' • ' + escapeHtml(tile.actionType) + (tile.actionValue ? (' • ' + escapeHtml(tile.actionValue)) : '') + '</div></span>' +
+        '<span><div class="tile-main">' + escapeHtml(tile.label) + '</div><div class="tile-sub">' + escapeHtml(tile.icon) + ' • ' + escapeHtml(tile.actionType) + (tile.actionValue ? (' • ' + escapeHtml(tile.actionValue)) : '') + ' • ' + tile.spanCols + 'x' + tile.spanRows + '</div></span>' +
         '<span class="tile-sub">#' + (tile.order + 1) + '</span>' +
       '</button>';
     })
@@ -741,6 +782,8 @@ function renderHistory(rows) {
 function setForm(tile) {
   document.getElementById("tile-label").value = tile ? tile.label : "";
   document.getElementById("tile-icon").value = tile ? tile.icon : "";
+  document.getElementById("tile-cols").value = tile ? String(tile.spanCols || 2) : "2";
+  document.getElementById("tile-rows").value = tile ? String(tile.spanRows || 1) : "1";
   const actionType = tile ? tile.actionType : "open_url";
   document.getElementById("tile-action").value = actionType;
   document.getElementById("tile-target").value = tile ? (tile.actionValue || "") : defaultTargetForAction(actionType);
@@ -807,11 +850,15 @@ async function refreshHistory() {
 function readForm() {
   const actionType = document.getElementById("tile-action").value;
   const actionValue = document.getElementById("tile-target").value.trim();
+  const spanCols = Number(document.getElementById("tile-cols").value || 2);
+  const spanRows = Number(document.getElementById("tile-rows").value || 1);
   return {
     label: document.getElementById("tile-label").value.trim() || "Untitled Tile",
-    icon: document.getElementById("tile-icon").value.trim() || "apps",
+    icon: document.getElementById("tile-icon").value.trim() || "⭐",
     actionType,
     actionValue,
+    spanCols,
+    spanRows,
   };
 }
 
