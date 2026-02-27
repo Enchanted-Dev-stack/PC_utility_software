@@ -248,6 +248,29 @@ describe("dashboard builder model create update delete", () => {
     expect(deleted.model.interaction.selectedTileId).toBe(deleted.model.tiles[0].id);
     expect(deleted.model.interaction.editorMode).toBe("edit");
   });
+
+  it("reports no-op save state with explicit affordance flags", async () => {
+    const runtime = createRuntime();
+    const handlers = createDashboardBuilderRuntimeHandlers(runtime);
+
+    const created = await handlers.createTile({
+      label: "Save Check",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "calculator"
+    });
+    expect(created.ok).toBe(true);
+
+    const firstSave = await handlers.saveLayout();
+    expect(firstSave.ok).toBe(true);
+    expect(firstSave.model.interaction.canSave).toBe(false);
+
+    const secondSave = await handlers.saveLayout();
+    expect(secondSave.ok).toBe(true);
+    expect(secondSave.feedback.outcome).toBe("noop");
+    expect(secondSave.feedback.message).toBe("Layout already saved");
+    expect(secondSave.model.interaction.canSave).toBe(false);
+  });
 });
 
 function createRuntime(): DesktopConnectivityRuntime {
