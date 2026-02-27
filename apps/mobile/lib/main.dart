@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -876,164 +877,177 @@ class _TileScreenState extends State<TileScreen> {
   @override
   Widget build(BuildContext context) {
     final activeTheme = _themeById(themeId);
+    final statusBarStyle = SystemUiOverlayStyle(
+      statusBarColor: activeTheme.statusBarColor,
+      statusBarIconBrightness:
+          activeTheme.darkStatusIcons ? Brightness.dark : Brightness.light,
+      statusBarBrightness:
+          activeTheme.darkStatusIcons ? Brightness.light : Brightness.dark,
+    );
 
-    return Scaffold(
-      body: GestureDetector(
-        onLongPress: _openQuickControls,
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await _run(_refreshStatus);
-            await _run(_refreshPreview);
-          },
-          child: ListView(
-            padding: EdgeInsets.all(activeTheme.screenPadding),
-            children: [
-              if (previewTiles.isEmpty)
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.72,
-                  child: Center(
-                    child: Text(
-                      paired
-                          ? 'No tiles available yet'
-                          : 'Pair from home screen first',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF334155),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: statusBarStyle,
+      child: Scaffold(
+        backgroundColor: activeTheme.screenBackground,
+        body: SafeArea(
+          child: GestureDetector(
+            onLongPress: _openQuickControls,
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await _run(_refreshStatus);
+                await _run(_refreshPreview);
+              },
+              child: ListView(
+                padding: EdgeInsets.all(activeTheme.screenPadding),
+                children: [
+                  if (previewTiles.isEmpty)
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.72,
+                      child: Center(
+                        child: Text(
+                          paired
+                              ? 'No tiles available yet'
+                              : 'Pair from home screen first',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF334155),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                )
-              else
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    const gridColumns = 4;
-                    final gap = activeTheme.gridGap;
-                    const rowHeight = 96.0;
-                    final placements = _buildPlacements(previewTiles, gridColumns: gridColumns);
+                    )
+                  else
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        const gridColumns = 4;
+                        final gap = activeTheme.gridGap;
+                        const rowHeight = 96.0;
+                        final placements = _buildPlacements(previewTiles, gridColumns: gridColumns);
 
-                    var totalRows = 1;
-                    for (final placement in placements) {
-                      final endRow = placement.row + placement.spanRows;
-                      if (endRow > totalRows) {
-                        totalRows = endRow;
-                      }
-                    }
+                        var totalRows = 1;
+                        for (final placement in placements) {
+                          final endRow = placement.row + placement.spanRows;
+                          if (endRow > totalRows) {
+                            totalRows = endRow;
+                          }
+                        }
 
-                    final cellWidth =
-                        (constraints.maxWidth - ((gridColumns - 1) * gap)) / gridColumns;
-                    final totalHeight = (totalRows * rowHeight) + ((totalRows - 1) * gap);
+                        final cellWidth =
+                            (constraints.maxWidth - ((gridColumns - 1) * gap)) / gridColumns;
+                        final totalHeight = (totalRows * rowHeight) + ((totalRows - 1) * gap);
 
-                    return SizedBox(
-                      height: totalHeight,
-                      child: Stack(
-                        children: placements.map((placement) {
-                          final tile = placement.tile;
-                          final label = '${tile['label'] ?? 'Tile'}';
-                          final actionType = '${tile['actionType'] ?? 'open_url'}';
-                          final actionValue = '${tile['actionValue'] ?? ''}';
-                          final tileId = '${tile['id'] ?? ''}';
-                          final iconGlyph = _iconGlyph(tile);
-                          final width =
-                              (placement.spanCols * cellWidth) + ((placement.spanCols - 1) * gap);
-                          final height =
-                              (placement.spanRows * rowHeight) + ((placement.spanRows - 1) * gap);
-                          final left = placement.col * (cellWidth + gap);
-                          final top = placement.row * (rowHeight + gap);
-                          final compactTile = height < 120;
+                        return SizedBox(
+                          height: totalHeight,
+                          child: Stack(
+                            children: placements.map((placement) {
+                              final tile = placement.tile;
+                              final label = '${tile['label'] ?? 'Tile'}';
+                              final actionType = '${tile['actionType'] ?? 'open_url'}';
+                              final actionValue = '${tile['actionValue'] ?? ''}';
+                              final tileId = '${tile['id'] ?? ''}';
+                              final iconGlyph = _iconGlyph(tile);
+                              final width =
+                                  (placement.spanCols * cellWidth) + ((placement.spanCols - 1) * gap);
+                              final height =
+                                  (placement.spanRows * rowHeight) + ((placement.spanRows - 1) * gap);
+                              final left = placement.col * (cellWidth + gap);
+                              final top = placement.row * (rowHeight + gap);
+                              final compactTile = height < 120;
 
-                          return Positioned(
-                            left: left,
-                            top: top,
-                            width: width,
-                            height: height,
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(activeTheme.radius),
-                                onTap: paired
-                                    ? () => _run(
-                                          () => _sendAction(
-                                            actionType,
-                                            tileId: tileId,
-                                            actionValue: actionValue,
-                                          ),
-                                        )
-                                    : null,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: activeTheme.background,
+                              return Positioned(
+                                left: left,
+                                top: top,
+                                width: width,
+                                height: height,
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
                                     borderRadius: BorderRadius.circular(activeTheme.radius),
-                                    border: Border.all(
-                                      color: activeTheme.border,
-                                      width: activeTheme.borderWidth,
-                                    ),
-                                    boxShadow: activeTheme.shadows,
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: Center(
-                                          child: Text(
-                                            iconGlyph,
-                                            style: TextStyle(
-                                              fontSize: height * 0.52,
-                                              color: activeTheme.iconTint,
-                                              fontWeight: FontWeight.w700,
+                                    onTap: paired
+                                        ? () => _run(
+                                              () => _sendAction(
+                                                actionType,
+                                                tileId: tileId,
+                                                actionValue: actionValue,
+                                              ),
+                                            )
+                                        : null,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: activeTheme.background,
+                                        borderRadius: BorderRadius.circular(activeTheme.radius),
+                                        border: Border.all(
+                                          color: activeTheme.border,
+                                          width: activeTheme.borderWidth,
+                                        ),
+                                        boxShadow: activeTheme.shadows,
+                                      ),
+                                      child: Stack(
+                                        children: [
+                                          Positioned.fill(
+                                            child: Center(
+                                              child: Text(
+                                                iconGlyph,
+                                                style: TextStyle(
+                                                  fontSize: height * 0.52,
+                                                  color: activeTheme.iconTint,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: EdgeInsets.all(compactTile ? 8 : 12),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              '${placement.spanCols}x${placement.spanRows}',
-                                              style: TextStyle(
-                                                color: activeTheme.meta,
-                                                fontSize: compactTile ? 10 : 11,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const Spacer(),
-                                            Text(
-                                              label,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: compactTile ? 14 : 16,
-                                                color: activeTheme.text,
-                                              ),
-                                              maxLines: compactTile ? 1 : 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            if (!compactTile) const SizedBox(height: 4),
-                                            if (!compactTile)
-                                              Text(
-                                                actionType,
-                                                style: TextStyle(
-                                                  color: activeTheme.meta,
-                                                  fontSize: 12,
+                                          Padding(
+                                            padding: EdgeInsets.all(compactTile ? 8 : 12),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  '${placement.spanCols}x${placement.spanRows}',
+                                                  style: TextStyle(
+                                                    color: activeTheme.meta,
+                                                    fontSize: compactTile ? 10 : 11,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
                                                 ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                          ],
-                                        ),
+                                                const Spacer(),
+                                                Text(
+                                                  label,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: compactTile ? 14 : 16,
+                                                    color: activeTheme.text,
+                                                  ),
+                                                  maxLines: compactTile ? 1 : 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                if (!compactTile) const SizedBox(height: 4),
+                                                if (!compactTile)
+                                                  Text(
+                                                    actionType,
+                                                    style: TextStyle(
+                                                      color: activeTheme.meta,
+                                                      fontSize: 12,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    );
-                  },
-                ),
-            ],
+                              );
+                            }).toList(),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -1055,6 +1069,9 @@ class _TileVisualTheme {
     required this.shadows,
     required this.gridGap,
     required this.screenPadding,
+    required this.screenBackground,
+    required this.statusBarColor,
+    required this.darkStatusIcons,
   });
 
   final String id;
@@ -1069,6 +1086,9 @@ class _TileVisualTheme {
   final List<BoxShadow> shadows;
   final double gridGap;
   final double screenPadding;
+  final Color screenBackground;
+  final Color statusBarColor;
+  final bool darkStatusIcons;
 }
 
 const List<_TileVisualTheme> _themes = [
@@ -1091,6 +1111,9 @@ const List<_TileVisualTheme> _themes = [
     ],
     gridGap: 10,
     screenPadding: 10,
+    screenBackground: Color(0xFFF6F8FC),
+    statusBarColor: Color(0xFFF6F8FC),
+    darkStatusIcons: true,
   ),
   _TileVisualTheme(
     id: 'glass',
@@ -1111,6 +1134,9 @@ const List<_TileVisualTheme> _themes = [
     ],
     gridGap: 10,
     screenPadding: 10,
+    screenBackground: Color(0xFFEFF4FF),
+    statusBarColor: Color(0xFFEFF4FF),
+    darkStatusIcons: true,
   ),
   _TileVisualTheme(
     id: 'midnight',
@@ -1131,6 +1157,9 @@ const List<_TileVisualTheme> _themes = [
     ],
     gridGap: 10,
     screenPadding: 10,
+    screenBackground: Color(0xFF0B1020),
+    statusBarColor: Color(0xFF0B1020),
+    darkStatusIcons: false,
   ),
   _TileVisualTheme(
     id: 'divider_grid',
@@ -1145,6 +1174,9 @@ const List<_TileVisualTheme> _themes = [
     shadows: [],
     gridGap: 0,
     screenPadding: 0,
+    screenBackground: Color(0xFFF8FAFC),
+    statusBarColor: Color(0xFFF8FAFC),
+    darkStatusIcons: true,
   ),
 ];
 
