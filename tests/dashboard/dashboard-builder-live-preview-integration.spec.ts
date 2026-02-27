@@ -200,6 +200,59 @@ describe("live preview updates", () => {
       isDirty: false
     });
   });
+
+  it("preserves interaction clarity sync across edit reorder delete and save", async () => {
+    const runtime = createRuntime();
+    const builder = createDashboardBuilderRuntimeHandlers(runtime);
+    const preview = createDashboardLivePreviewRuntimeHandlers(runtime);
+
+    const one = await builder.createTile({
+      label: "One",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "notepad"
+    });
+    const two = await builder.createTile({
+      label: "Two",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+    expect(one.ok).toBe(true);
+    expect(two.ok).toBe(true);
+
+    const invalidReorder = await builder.moveTile({ fromIndex: 5, toIndex: 0 });
+    expect(invalidReorder.ok).toBe(false);
+    expect(invalidReorder.model.interaction.canReorder).toBe(true);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["One", "Two"],
+      isDirty: false
+    });
+
+    const reordered = await builder.moveTile({ fromIndex: 1, toIndex: 0 });
+    expect(reordered.ok).toBe(true);
+    expect(reordered.model.interaction.canSave).toBe(true);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["Two", "One"],
+      isDirty: true
+    });
+
+    const saved = await builder.saveLayout();
+    expect(saved.ok).toBe(true);
+    expect(saved.model.interaction.canSave).toBe(false);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["Two", "One"],
+      isDirty: false
+    });
+
+    const deleted = await builder.deleteTile({ tileId: saved.model.tiles[0].id });
+    expect(deleted.ok).toBe(true);
+    expect(deleted.model.interaction.selectionValid).toBe(true);
+    await expectBuilderAndPreviewInSync(builder, preview, {
+      labels: ["One"],
+      isDirty: false
+    });
+  });
 });
 
 async function expectBuilderAndPreviewInSync(
