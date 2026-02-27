@@ -2,6 +2,13 @@ import { createMobileDashboardModel } from "../../apps/mobile/src/ui/dashboard/M
 import { createDashboardLivePreviewModel } from "../../apps/desktop/src/ui/dashboard/DashboardLivePreviewModel";
 import { buildActionTilesGateModel } from "../../apps/mobile/src/ui/controls/ActionTilesGate";
 import { buildConnectionStatusBannerModel } from "../../apps/mobile/src/ui/connection-status/ConnectionStatusBanner";
+import {
+  ACCESSIBILITY_TARGET_SIZE_MINIMUMS,
+  ACCESSIBILITY_TYPOGRAPHY_MINIMUMS,
+  meetsTargetSizeMinimum,
+  meetsTypographyMinimum
+} from "../../shared/src/contracts/ui/accessibility-standards";
+import { VISUAL_TOKENS } from "../../shared/src/contracts/ui/visual-tokens";
 
 describe("mobile semantic mapping", () => {
   it("adds typography/spacing/state appearance metadata to mobile tiles", () => {
@@ -30,6 +37,18 @@ describe("mobile semantic mapping", () => {
     expect(model.tiles[0].appearance.spacingRole).toBe("lg");
     expect(model.tiles[0].appearance.states.focus.focusRingVisible).toBe(true);
     expect(model.tiles[0].appearance.states.disabled.opacity).toBeLessThan(1);
+    expect(
+      meetsTargetSizeMinimum(
+        model.tiles[0].appearance.accessibility.minTargetSize,
+        ACCESSIBILITY_TARGET_SIZE_MINIMUMS.mobile.tile
+      )
+    ).toBe(true);
+    expect(
+      meetsTypographyMinimum(
+        VISUAL_TOKENS.typography.label,
+        ACCESSIBILITY_TYPOGRAPHY_MINIMUMS.mobile.label
+      )
+    ).toBe(true);
   });
 
   it("maps connection gate and status banner to shared semantic tones", () => {
@@ -101,5 +120,11 @@ describe("mobile semantic mapping", () => {
     expect(typeof mobileModel.tiles[0].appearance.states.default.textColor).toBe("string");
     expect(mobileModel.tiles[0].appearance.states.focus.focusRingVisible).toBe(true);
     expect(mobileModel.tiles[0].appearance.states.disabled.opacity).toBeLessThan(1);
+    expect(
+      mobileModel.tiles[0].appearance.accessibility.minTargetSize
+    ).toEqual(ACCESSIBILITY_TARGET_SIZE_MINIMUMS.mobile.tile);
+    expect(
+      desktopModel.tiles[0].appearance.accessibility.minTargetSize
+    ).toEqual(ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop.tile);
   });
 });

@@ -1,4 +1,10 @@
 import {
+  ACCESSIBILITY_TARGET_SIZE_MINIMUMS,
+  ACCESSIBILITY_TYPOGRAPHY_MINIMUMS,
+  meetsTargetSizeMinimum,
+  meetsTypographyMinimum
+} from "../../shared/src/contracts/ui/accessibility-standards";
+import {
   VISUAL_REQUIRED_STATES,
   VISUAL_SEMANTIC_TONES,
   VISUAL_TOKENS,
@@ -22,6 +28,25 @@ describe("shared token contract", () => {
     expect(VISUAL_TOKENS.spacing.sm).toBeLessThan(VISUAL_TOKENS.spacing.md);
     expect(VISUAL_TOKENS.spacing.md).toBeLessThan(VISUAL_TOKENS.spacing.lg);
     expect(VISUAL_TOKENS.spacing.lg).toBeLessThan(VISUAL_TOKENS.spacing.xl);
+
+    expect(
+      meetsTypographyMinimum(
+        VISUAL_TOKENS.typography.body,
+        ACCESSIBILITY_TYPOGRAPHY_MINIMUMS.desktop.body
+      )
+    ).toBe(true);
+    expect(
+      meetsTypographyMinimum(
+        VISUAL_TOKENS.typography.label,
+        ACCESSIBILITY_TYPOGRAPHY_MINIMUMS.desktop.label
+      )
+    ).toBe(true);
+    expect(
+      meetsTypographyMinimum(
+        VISUAL_TOKENS.typography.caption,
+        ACCESSIBILITY_TYPOGRAPHY_MINIMUMS.desktop.caption
+      )
+    ).toBe(true);
   });
 
   it("contains required semantic roles and required interaction states", () => {
@@ -53,6 +78,19 @@ describe("surface adapters", () => {
       expect(mobile.states.focus.focusRingVisible).toBe(true);
       expect(desktop.states.error.borderColor).toBe(VISUAL_TOKENS.semantic.error.solid);
       expect(mobile.states.error.borderColor).toBe(VISUAL_TOKENS.semantic.error.solid);
+
+      expect(
+        meetsTargetSizeMinimum(
+          desktop.accessibility.minTargetSize,
+          ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop.tile
+        )
+      ).toBe(true);
+      expect(
+        meetsTargetSizeMinimum(
+          mobile.accessibility.minTargetSize,
+          ACCESSIBILITY_TARGET_SIZE_MINIMUMS.mobile.tile
+        )
+      ).toBe(true);
     }
   });
 });
