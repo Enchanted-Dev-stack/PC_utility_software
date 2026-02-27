@@ -74,6 +74,43 @@ describe("dashboard builder mutation feedback", () => {
     expect(missingFirst.feedback.dedupeKey).toBe(missingSecond.feedback.dedupeKey);
     expect(missingFirst.feedback.message).toBe("Tile not found");
   });
+
+  it("distinguishes success, failure, and noop outcomes", async () => {
+    const runtime = createRuntime();
+    const handlers = createDashboardBuilderRuntimeHandlers(runtime);
+
+    const created = await handlers.createTile({
+      label: "Docs",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+    const invalid = await handlers.moveTile({ fromIndex: -1, toIndex: 0 });
+    const noopSave = await handlers.saveLayout();
+
+    expect(created.feedback.outcome).toBe("success");
+    expect(created.feedback.message).toBe("Tile created");
+    expect(invalid.feedback.outcome).toBe("failure");
+    expect(invalid.feedback.code).toBe("invalid_reorder");
+    expect(noopSave.feedback.outcome).toBe("noop");
+    expect(noopSave.feedback.message).toBe("Layout already saved");
+  });
+
+  it("does not collapse validation errors into generic fallback messaging", async () => {
+    const runtime = createRuntime();
+    const handlers = createDashboardBuilderRuntimeHandlers(runtime);
+
+    const invalidCreate = await handlers.createTile({
+      label: "",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "calculator"
+    });
+
+    expect(invalidCreate.ok).toBe(false);
+    expect(invalidCreate.feedback.message).toBe("Tile label is required");
+    expect(invalidCreate.feedback.message).not.toBe("Tile update is invalid");
+  });
 });
 
 function createRuntime(): DesktopConnectivityRuntime {
