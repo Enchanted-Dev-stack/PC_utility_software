@@ -2,8 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
-const String apiBaseUrl = String.fromEnvironment(
+const String defaultApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
   defaultValue: 'http://127.0.0.1:8787',
 );
@@ -38,14 +39,51 @@ class ControlScreen extends StatefulWidget {
 }
 
 class _ControlScreenState extends State<ControlScreen> {
+  String baseUrl = defaultApiBaseUrl;
   String status = 'Idle';
   String trusted = 'untrusted';
   bool paired = false;
   String host = '-';
   String message = 'Connect to your desktop to start.';
   List<Map<String, dynamic>> previewTiles = const [];
+  final TextEditingController serverController =
+      TextEditingController(text: defaultApiBaseUrl);
 
-  Uri _url(String path) => Uri.parse('$apiBaseUrl$path');
+  Uri _url(String path) => Uri.parse('$baseUrl$path');
+
+  String _normalizeBaseUrl(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return defaultApiBaseUrl;
+    }
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    return 'http://$trimmed';
+  }
+
+  Future<void> _loadServerUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('server_base_url');
+    final next = _normalizeBaseUrl(saved ?? defaultApiBaseUrl);
+    setState(() {
+      baseUrl = next;
+      serverController.text = next;
+    });
+  }
+
+  Future<void> _saveServerUrl() async {
+    final next = _normalizeBaseUrl(serverController.text);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('server_base_url', next);
+    setState(() {
+      baseUrl = next;
+      serverController.text = next;
+      message = 'Server URL updated: $next';
+    });
+    await _refreshStatus();
+    await _refreshPreview();
+  }
 
   Future<void> _discover() async {
     final response = await http.get(_url('/discover'));
@@ -119,15 +157,18 @@ class _ControlScreenState extends State<ControlScreen> {
   }
 
   Future<void> _sendAction(String actionType, {String? tileId, String? actionValue}) async {
+    final payload = <String, dynamic>{
+      'deviceId': 'android-usb-device',
+      'actionType': actionType,
+      'tileId': tileId,
+      'actionValue': actionValue,
+    };
+    payload.removeWhere((_, value) => value == null);
+
     final response = await http.post(
       _url('/action'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'deviceId': 'android-usb-device',
-        'actionType': actionType,
-        if (tileId != null) 'tileId': tileId,
-        if (actionValue != null) 'actionValue': actionValue,
-      }),
+      body: jsonEncode(payload),
     );
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode >= 400) {
@@ -160,8 +201,17 @@ class _ControlScreenState extends State<ControlScreen> {
   @override
   void initState() {
     super.initState();
-    _run(_refreshStatus);
-    _run(_refreshPreview);
+    _run(() async {
+      await _loadServerUrl();
+      await _refreshStatus();
+      await _refreshPreview();
+    });
+  }
+
+  @override
+  void dispose() {
+    serverController.dispose();
+    super.dispose();
   }
 
   int _clampSpan(dynamic value, {required int fallback}) {
@@ -327,6 +377,52 @@ class _ControlScreenState extends State<ControlScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               child: Padding(
                 padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Desktop Server URL',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Set your PC LAN URL once (example: http://192.168.1.23:8787).',
+                      style: TextStyle(color: Color(0xFF475569)),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: serverController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                        hintText: 'http://192.168.1.23:8787',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        FilledButton.icon(
+                          onPressed: () => _run(_saveServerUrl),
+                          icon: const Icon(Icons.save),
+                          label: const Text('Save URL'),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: () => _run(_refreshStatus),
+                          icon: const Icon(Icons.network_check),
+                          label: const Text('Test'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -433,6 +529,7 @@ class _ControlScreenState extends State<ControlScreen> {
                             (placement.spanRows * rowHeight) + ((placement.spanRows - 1) * gap);
                         final left = placement.col * (cellWidth + gap);
                         final top = placement.row * (rowHeight + gap);
+                        final compactTile = height < 120;
 
                         return Positioned(
                           left: left,
@@ -463,45 +560,46 @@ class _ControlScreenState extends State<ControlScreen> {
                                         iconGlyph,
                                         style: TextStyle(
                                           fontSize: height * 0.52,
-                                          color: const Color(0xFF1E293B).withOpacity(0.09),
+                                          color: const Color(0xFF1E293B).withValues(alpha: 0.09),
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: EdgeInsets.all(compactTile ? 8 : 12),
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           '${placement.spanCols}x${placement.spanRows}',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             color: Color(0xFF64748B),
-                                            fontSize: 11,
+                                            fontSize: compactTile ? 10 : 11,
                                           ),
                                         ),
                                         const Spacer(),
                                         Text(
                                           label,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontWeight: FontWeight.w700,
-                                            fontSize: 16,
+                                            fontSize: compactTile ? 14 : 16,
                                           ),
-                                          maxLines: 2,
+                                          maxLines: compactTile ? 1 : 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          actionType,
-                                          style: const TextStyle(
-                                            color: Color(0xFF475569),
-                                            fontSize: 12,
+                                        if (!compactTile) const SizedBox(height: 4),
+                                        if (!compactTile)
+                                          Text(
+                                            actionType,
+                                            style: const TextStyle(
+                                              color: Color(0xFF475569),
+                                              fontSize: 12,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (actionValue.isNotEmpty)
+                                        if (!compactTile && actionValue.isNotEmpty)
                                           Text(
                                             actionValue,
                                             style: const TextStyle(

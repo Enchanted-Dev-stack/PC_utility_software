@@ -1,5 +1,6 @@
 const http = require("node:http");
 const { spawn } = require("node:child_process");
+const os = require("node:os");
 
 const PORT = Number(process.env.PORT || 8787);
 const ACCESSIBILITY_VERIFICATION_ROUTE = "/verify/builder-accessibility";
@@ -207,6 +208,27 @@ function normalizeHttpUrl(value) {
   return parsed.href;
 }
 
+function networkSnapshot() {
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
+
+  for (const values of Object.values(interfaces)) {
+    for (const item of values || []) {
+      if (!item || item.family !== "IPv4" || item.internal) {
+        continue;
+      }
+      addresses.push(item.address);
+    }
+  }
+
+  const unique = [...new Set(addresses)];
+  return {
+    port: PORT,
+    localhostUrl: `http://127.0.0.1:${PORT}`,
+    lanUrls: unique.map((address) => `http://${address}:${PORT}`),
+  };
+}
+
 function splitCommandLine(value) {
   const input = String(value || "").trim();
   if (!input) {
@@ -406,6 +428,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/network") {
+      sendJson(res, 200, networkSnapshot());
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/dashboard") {
       sendJson(res, 200, dashboardSnapshot());
       return;
@@ -602,6 +629,8 @@ const server = http.createServer(async (req, res) => {
       (url.pathname === "/panel" || url.pathname === ACCESSIBILITY_VERIFICATION_ROUTE)
     ) {
       const prerequisite = getAccessibilityVerificationPrerequisite();
+      const network = networkSnapshot();
+      const mobileUrl = network.lanUrls[0] || network.localhostUrl;
       const bootDashboard = JSON.stringify(dashboardSnapshot());
       const bootHistory = JSON.stringify(state.actionHistory);
       const html = `<!doctype html>
@@ -671,6 +700,11 @@ th{color:var(--muted);font-weight:600}
       <div class="pill">Host: <b>${state.lastHost}</b></div>
       <div class="pill">Trusted: <b>${state.paired ? "yes" : "no"}</b></div>
     </div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <h2 style="margin-bottom:8px">Phone Connection URL</h2>
+    <div class="muted">Use this base URL in the mobile app settings (no adb reverse required):</div>
+    <pre style="margin-top:8px">${mobileUrl}</pre>
   </div>
 
   <div class="grid">
@@ -1296,8 +1330,12 @@ hydrate().catch((err) => {
 
 function startServer() {
   server.listen(PORT, "0.0.0.0", () => {
+    const network = networkSnapshot();
     logEvent("server", `Desktop runtime listening on ${PORT}`);
     console.log(`[desktop-runtime] listening on http://0.0.0.0:${PORT}`);
+    for (const url of network.lanUrls) {
+      console.log(`[desktop-runtime] lan url ${url}`);
+    }
   });
   return server;
 }

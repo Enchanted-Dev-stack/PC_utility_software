@@ -56,7 +56,7 @@ function spawnEmbeddedServer() {
   const serverScript = path.resolve(__dirname, "..", "server.js");
   embeddedServer = spawn(process.execPath, [serverScript], {
     cwd: path.resolve(__dirname, "..", "..", ".."),
-    env: { ...process.env },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
     stdio: "inherit",
     windowsHide: true,
   });
