@@ -228,7 +228,7 @@ class _ControlScreenState extends State<ControlScreen> {
 
   Future<http.Response> _safeGet(String path) async {
     await _ensureServerReachable();
-    return http.get(_url(path)).timeout(const Duration(seconds: 3));
+    return http.get(_url(path)).timeout(const Duration(seconds: 6));
   }
 
   Future<http.Response> _safePost(String path, Map<String, dynamic> body) async {
@@ -239,7 +239,7 @@ class _ControlScreenState extends State<ControlScreen> {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(body),
         )
-        .timeout(const Duration(seconds: 3));
+        .timeout(const Duration(seconds: 6));
   }
 
   Future<void> _discover() async {
@@ -600,6 +600,7 @@ class _TileScreenState extends State<TileScreen> {
   String themeId = 'neo_brutal';
   StreamSubscription<AccelerometerEvent>? _shakeSubscription;
   DateTime? _lastShakeAt;
+  final Map<String, MemoryImage> _dataImageCache = <String, MemoryImage>{};
 
   Uri _url(String path) => Uri.parse('${widget.baseUrl}$path');
 
@@ -821,6 +822,48 @@ class _TileScreenState extends State<TileScreen> {
     return mapped ?? raw;
   }
 
+  ImageProvider<Object>? _tileImageProvider(Map<String, dynamic> tile) {
+    final raw = '${tile['imageUrl'] ?? ''}'.trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      return NetworkImage(raw);
+    }
+
+    if (!raw.startsWith('data:image/')) {
+      return null;
+    }
+
+    final cached = _dataImageCache[raw];
+    if (cached != null) {
+      return cached;
+    }
+
+    final commaIndex = raw.indexOf(',');
+    if (commaIndex <= 0) {
+      return null;
+    }
+
+    final metadata = raw.substring(0, commaIndex).toLowerCase();
+    if (!metadata.contains(';base64')) {
+      return null;
+    }
+
+    try {
+      final bytes = base64Decode(raw.substring(commaIndex + 1));
+      final image = MemoryImage(bytes);
+      _dataImageCache[raw] = image;
+      if (_dataImageCache.length > 24) {
+        _dataImageCache.remove(_dataImageCache.keys.first);
+      }
+      return image;
+    } catch (_) {
+      return null;
+    }
+  }
+
   List<_PlacedTile> _buildPlacements(List<Map<String, dynamic>> tiles, {int gridColumns = 4}) {
     final occupancy = <List<bool>>[];
     final placements = <_PlacedTile>[];
@@ -981,6 +1024,7 @@ class _TileScreenState extends State<TileScreen> {
                               final actionValue = '${tile['actionValue'] ?? ''}';
                               final tileId = '${tile['id'] ?? ''}';
                               final iconGlyph = _iconGlyph(tile);
+                              final tileImage = _tileImageProvider(tile);
                               final width =
                                   (placement.spanCols * cellWidth) + ((placement.spanCols - 1) * gap);
                               final height =
@@ -1019,18 +1063,46 @@ class _TileScreenState extends State<TileScreen> {
                                       ),
                                       child: Stack(
                                         children: [
-                                          Positioned.fill(
-                                            child: Center(
-                                              child: Text(
-                                                iconGlyph,
-                                                style: TextStyle(
-                                                  fontSize: height * 0.52,
-                                                  color: activeTheme.iconTint,
-                                                  fontWeight: FontWeight.w700,
+                                          if (tileImage != null)
+                                            Positioned.fill(
+                                              child: Opacity(
+                                                opacity: 0.55,
+                                                child: Image(
+                                                  image: tileImage,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) =>
+                                                      const SizedBox.shrink(),
                                                 ),
                                               ),
                                             ),
-                                          ),
+                                          if (tileImage == null)
+                                            Positioned.fill(
+                                              child: Center(
+                                                child: Text(
+                                                  iconGlyph,
+                                                  style: TextStyle(
+                                                    fontSize: height * 0.52,
+                                                    color: activeTheme.iconTint,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          if (tileImage != null)
+                                            Positioned.fill(
+                                              child: DecoratedBox(
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topCenter,
+                                                    end: Alignment.bottomCenter,
+                                                    colors: [
+                                                      Colors.black.withValues(alpha: 0.12),
+                                                      Colors.black.withValues(alpha: 0.38),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                           Padding(
                                             padding: EdgeInsets.all(compactTile ? 8 : 12),
                                             child: Column(

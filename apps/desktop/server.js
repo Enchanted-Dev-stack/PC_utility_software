@@ -198,8 +198,8 @@ function readBody(req) {
     let data = "";
     req.on("data", (chunk) => {
       data += chunk;
-      if (data.length > 1_000_000) {
-        reject(new Error("Payload too large"));
+      if (data.length > 8_000_000) {
+        reject(new Error("Payload too large (max 8MB)"));
       }
     });
     req.on("end", () => {
