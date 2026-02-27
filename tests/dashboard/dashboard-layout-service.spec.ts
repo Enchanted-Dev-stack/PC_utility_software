@@ -314,6 +314,63 @@ describe("dashboard runtime wiring", () => {
     expect(snapshots).toHaveLength(5);
     stop();
   });
+
+  it("hydrates persisted snapshots across runtime recreation", async () => {
+    const persistence = new InMemoryDashboardLayoutPersistence();
+    const runtimeA = new DesktopConnectivityRuntime({
+      hostId: "host-primary",
+      hostName: "Office-PC",
+      hostDeviceId: "desktop-1",
+      hostIpAddress: "192.168.1.10",
+      dashboardLayoutPersistence: persistence,
+      now: createTickingNow()
+    });
+
+    const first = runtimeA.createDashboardTile({
+      label: "Browser",
+      icon: "browser",
+      action: {
+        actionType: "open_website",
+        payload: {
+          url: "https://example.com"
+        }
+      }
+    });
+    const second = runtimeA.createDashboardTile({
+      label: "Apps",
+      icon: "apps",
+      action: {
+        actionType: "open_app",
+        payload: {
+          appId: "notepad"
+        }
+      }
+    });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+
+    const reordered = runtimeA.reorderDashboardTiles({ fromIndex: 1, toIndex: 0 });
+    expect(reordered.ok).toBe(true);
+
+    const runtimeB = new DesktopConnectivityRuntime({
+      hostId: "host-primary",
+      hostName: "Office-PC",
+      hostDeviceId: "desktop-1",
+      hostIpAddress: "192.168.1.10",
+      dashboardLayoutPersistence: persistence,
+      now: createTickingNow()
+    });
+
+    const hydrated = runtimeB.getDashboardLayout();
+    expect(hydrated.tiles.map((tile) => tile.label)).toEqual(["Apps", "Browser"]);
+    expect(hydrated.tiles.map((tile) => tile.order)).toEqual([0, 1]);
+
+    const noopReorder = runtimeB.reorderDashboardTiles({ fromIndex: 0, toIndex: 0 });
+    expect(noopReorder.ok).toBe(true);
+
+    const afterNoop = runtimeB.getDashboardLayout();
+    expect(afterNoop.tiles.map((tile) => tile.label)).toEqual(["Apps", "Browser"]);
+  });
 });
 
 function createService(): DashboardLayoutService {

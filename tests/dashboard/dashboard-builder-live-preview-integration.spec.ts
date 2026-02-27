@@ -1,4 +1,5 @@
 import { DesktopConnectivityRuntime } from "../../apps/desktop/src/runtime/connectivity/desktop-connectivity-runtime";
+import { InMemoryDashboardLayoutPersistence } from "../../apps/desktop/src/runtime/dashboard/dashboard-layout-persistence";
 import { createDashboardBuilderRuntimeHandlers } from "../../apps/desktop/src/ui/dashboard/DashboardBuilderModel";
 import { createDashboardLivePreviewRuntimeHandlers } from "../../apps/desktop/src/ui/dashboard/DashboardLivePreviewModel";
 
@@ -253,6 +254,64 @@ describe("live preview updates", () => {
       isDirty: false
     });
   });
+
+  it("persists reorder-save state across runtime recreation and keeps preview synchronized", async () => {
+    const persistence = new InMemoryDashboardLayoutPersistence();
+    const runtimeA = createRuntime(persistence);
+    const builderA = createDashboardBuilderRuntimeHandlers(runtimeA);
+    const previewA = createDashboardLivePreviewRuntimeHandlers(runtimeA);
+
+    await builderA.createTile({
+      label: "Browser",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+    await builderA.createTile({
+      label: "Music",
+      icon: "media",
+      actionType: "media_control",
+      command: "play_pause"
+    });
+    const apps = await builderA.createTile({
+      label: "Apps",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "notepad"
+    });
+    expect(apps.ok).toBe(true);
+
+    const reordered = await builderA.moveTile({ fromIndex: 2, toIndex: 0 });
+    expect(reordered.ok).toBe(true);
+    const saved = await builderA.saveLayout();
+    expect(saved.ok).toBe(true);
+    await expectBuilderAndPreviewInSync(builderA, previewA, {
+      labels: ["Apps", "Browser", "Music"],
+      isDirty: false
+    });
+
+    const runtimeB = createRuntime(persistence);
+    const builderB = createDashboardBuilderRuntimeHandlers(runtimeB);
+    const previewB = createDashboardLivePreviewRuntimeHandlers(runtimeB);
+
+    await expectBuilderAndPreviewInSync(builderB, previewB, {
+      labels: ["Apps", "Browser", "Music"],
+      isDirty: false
+    });
+
+    const browserId = (await builderB.getModel()).tiles[1].id;
+    const updated = await builderB.updateTile({
+      tileId: browserId,
+      label: "Docs",
+      actionType: "open_website",
+      url: "https://example.com/docs"
+    });
+    expect(updated.ok).toBe(true);
+    await expectBuilderAndPreviewInSync(builderB, previewB, {
+      labels: ["Apps", "Docs", "Music"],
+      isDirty: false
+    });
+  });
 });
 
 async function expectBuilderAndPreviewInSync(
@@ -284,12 +343,15 @@ function expectedContiguousOrders(size: number): number[] {
   return Array.from({ length: size }, (_, index) => index);
 }
 
-function createRuntime(): DesktopConnectivityRuntime {
+function createRuntime(
+  dashboardLayoutPersistence?: InMemoryDashboardLayoutPersistence
+): DesktopConnectivityRuntime {
   return new DesktopConnectivityRuntime({
     hostId: "host-primary",
     hostName: "Office-PC",
     hostDeviceId: "desktop-1",
     hostIpAddress: "192.168.1.10",
+    dashboardLayoutPersistence,
     now: createTickingNow()
   });
 }
