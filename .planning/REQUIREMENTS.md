@@ -25,9 +25,9 @@
 
 ### Preview Fidelity
 
-- [ ] **PRV-01**: User sees mobile preview updates that visually match desktop builder edits for label/icon/order/spacing.
-- [ ] **PRV-02**: User can reorder and save on desktop and observe the same order persist in mobile preview after refresh/reopen.
-- [ ] **PRV-03**: User does not observe visible visual drift between desktop preview and mobile rendering for supported tile states.
+- [x] **PRV-01**: User sees mobile preview updates that visually match desktop builder edits for label/icon/order/spacing.
+- [x] **PRV-02**: User can reorder and save on desktop and observe the same order persist in mobile preview after refresh/reopen.
+- [x] **PRV-03**: User does not observe visible visual drift between desktop preview and mobile rendering for supported tile states.
 
 ### Accessibility and QA Gates
 
@@ -64,9 +64,9 @@
 | UX-01 | Phase 5 | Complete |
 | UX-02 | Phase 5 | Complete |
 | UX-03 | Phase 5 | Complete |
-| PRV-01 | Phase 6 | Pending |
-| PRV-02 | Phase 6 | Pending |
-| PRV-03 | Phase 6 | Pending |
+| PRV-01 | Phase 6 | Complete |
+| PRV-02 | Phase 6 | Complete |
+| PRV-03 | Phase 6 | Complete |
 | A11Y-01 | Phase 7 | Pending |
 | A11Y-02 | Phase 7 | Pending |
 | QA-01 | Phase 7 | Pending |
@@ -78,4 +78,4 @@
 
 ---
 *Requirements defined: 2026-02-27*
-*Last updated: 2026-02-27 after milestone v1.1 requirements definition*
+*Last updated: 2026-02-27 after Phase 6 execution*

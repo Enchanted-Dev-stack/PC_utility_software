@@ -15,7 +15,7 @@ The roadmap keeps v1.0 runtime behavior intact while raising product quality for
 - [x] **Phase 3: Dashboard Builder and Live Preview** - Deliver full tile management workflows and real-time mobile layout preview.
 - [x] **Phase 4: Unified Visual System** - Establish shared visual language and state semantics across builder and dashboard.
 - [x] **Phase 5: Builder Interaction Clarity** - Remove ambiguous UI states and make editing feedback concise and trustworthy. (completed 2026-02-27)
-- [ ] **Phase 6: Preview Fidelity and Persistence** - Ensure desktop edits and saved order are faithfully reflected in mobile preview.
+- [x] **Phase 6: Preview Fidelity and Persistence** - Ensure desktop edits and saved order are faithfully reflected in mobile preview. (completed 2026-02-27)
 - [ ] **Phase 7: Accessibility and Regression Gates** - Lock keyboard/touch accessibility baseline and pre-release UI regression checks.
 
 ## Phase Details
@@ -113,7 +113,12 @@ Plans:
   1. User edits tile label, icon, order, or spacing in desktop builder and sees matching updates in mobile preview.
   2. User reorders tiles and saves on desktop, refreshes or reopens, and sees the same order preserved in mobile preview.
   3. User does not observe visible style/state drift between desktop preview and mobile rendering for supported tile states.
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [x] 06-01-PLAN.md - Unify preview projection logic across desktop and mobile to eliminate fidelity drift.
+- [x] 06-02-PLAN.md - Add durable dashboard layout persistence for reorder/save parity after refresh and reopen.
+- [x] 06-03-PLAN.md - Lock end-to-end preview fidelity and visual/state parity with restart-aware regression gates.
 
 ### Phase 7: Accessibility and Regression Gates
 **Goal**: Users can operate critical controls accessibly while releases are protected by automated UI quality gates.
@@ -137,5 +142,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Dashboard Builder and Live Preview | 4/4 | Complete | 2026-02-26 |
 | 4. Unified Visual System | 3/3 | Complete | 2026-02-27 |
 | 5. Builder Interaction Clarity | 3/3 | Complete | 2026-02-27 |
-| 6. Preview Fidelity and Persistence | 0/TBD | Not started | - |
+| 6. Preview Fidelity and Persistence | 3/3 | Complete | 2026-02-27 |
 | 7. Accessibility and Regression Gates | 0/TBD | Not started | - |
