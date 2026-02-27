@@ -22,12 +22,13 @@ A user can tap custom tiles on their phone and instantly trigger the right actio
 ### Validated
 
 - ✓ Desktop builder now provides deterministic mutation feedback, explicit affordance state, and deduplicated messaging clarity — Phase 5
+- ✓ User can trust that saved layout order and desktop edits persist and appear identically in mobile preview sessions — Phase 6
+- ✓ User can view a mobile dashboard with refined layout, typography, and accessibility-consistent interaction states — Phase 7
+- ✓ Team can run deterministic accessibility and visual regression gates before release to prevent UI quality drift — Phase 7
 
 ### Active
 
-- [ ] User can view a mobile dashboard with refined layout, typography, and motion consistent with desktop preview.
-- [ ] User can trust that UI polish does not regress existing pairing, runtime actions, and preview synchronization behavior.
-- [ ] User can trust that saved layout order and desktop edits persist and appear identically in mobile preview sessions.
+None - milestone v1.1 requirements are validated.
 
 ### Out of Scope
 
@@ -59,6 +60,8 @@ A user can tap custom tiles on their phone and instantly trigger the right actio
 | Progressively add advanced features after MVP | Matches user request to keep complexity low first, then expand safely | - Pending |
 | Start milestone v1.1 focused on UI polish and UX refinement | Core functionality is validated; next leverage is product quality and presentation consistency | - Pending |
 | Use deterministic feedback identities for builder outcomes across desktop surfaces | Prevent noisy duplicate messaging while preserving immediate clarity for distinct events | Phase 5 complete |
+| Encode accessibility baseline as shared contracts in runtime model outputs | Makes keyboard, focus, readability, and target-size guarantees deterministic and testable across layers | Phase 7 complete |
+| Add one-command UI release gate (`test:ui-gates`) for accessibility/parity checks | Gives maintainers a CI-friendly pass/fail quality gate before shipment | Phase 7 complete |
 
 ---
-*Last updated: 2026-02-27 after Phase 5*
+*Last updated: 2026-02-27 after Phase 7*
