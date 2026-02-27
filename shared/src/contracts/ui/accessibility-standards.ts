@@ -26,6 +26,52 @@ export interface KeyboardOperabilityMetadata {
   primaryPath: readonly DesktopPrimaryKeyboardControl[];
 }
 
+export type AccessibilitySurface = "desktop" | "mobile";
+
+export interface TypographyMinimum {
+  fontSize: number;
+  lineHeight: number;
+}
+
+export interface TargetSizeMinimum {
+  minWidth: number;
+  minHeight: number;
+}
+
+export const ACCESSIBILITY_TYPOGRAPHY_MINIMUMS: Record<AccessibilitySurface, {
+  body: TypographyMinimum;
+  label: TypographyMinimum;
+  caption: TypographyMinimum;
+}> = {
+  desktop: {
+    body: { fontSize: 14, lineHeight: 20 },
+    label: { fontSize: 13, lineHeight: 18 },
+    caption: { fontSize: 12, lineHeight: 16 }
+  },
+  mobile: {
+    body: { fontSize: 14, lineHeight: 20 },
+    label: { fontSize: 13, lineHeight: 18 },
+    caption: { fontSize: 12, lineHeight: 16 }
+  }
+};
+
+export const ACCESSIBILITY_TARGET_SIZE_MINIMUMS: Record<AccessibilitySurface, {
+  tile: TargetSizeMinimum;
+  control: TargetSizeMinimum;
+  banner: TargetSizeMinimum;
+}> = {
+  desktop: {
+    tile: { minWidth: 44, minHeight: 44 },
+    control: { minWidth: 32, minHeight: 32 },
+    banner: { minWidth: 32, minHeight: 32 }
+  },
+  mobile: {
+    tile: { minWidth: 48, minHeight: 48 },
+    control: { minWidth: 44, minHeight: 44 },
+    banner: { minWidth: 44, minHeight: 44 }
+  }
+};
+
 export function toFocusVisibilityMetadata(
   focusState: Pick<VisualStateStyle, "focusRingVisible" | "focusRingColor" | "backgroundColor">,
   minContrastRatio = ACCESSIBILITY_CONTRAST.minFocusRingRatio
@@ -45,6 +91,20 @@ export function isFocusVisibilityCompliant(metadata: FocusVisibilityMetadata): b
 export function hasDesktopKeyboardCoverage(metadata: KeyboardOperabilityMetadata): boolean {
   const controlSet = new Set(metadata.controls);
   return DESKTOP_PRIMARY_KEYBOARD_CONTROLS.every((control) => controlSet.has(control));
+}
+
+export function meetsTypographyMinimum(
+  typography: TypographyMinimum,
+  minimum: TypographyMinimum
+): boolean {
+  return typography.fontSize >= minimum.fontSize && typography.lineHeight >= minimum.lineHeight;
+}
+
+export function meetsTargetSizeMinimum(
+  target: TargetSizeMinimum,
+  minimum: TargetSizeMinimum
+): boolean {
+  return target.minWidth >= minimum.minWidth && target.minHeight >= minimum.minHeight;
 }
 
 function measureContrastRatio(foregroundHex: string, backgroundHex: string): number {
