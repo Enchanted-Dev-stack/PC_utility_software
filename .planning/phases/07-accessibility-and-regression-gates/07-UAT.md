@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 07-accessibility-and-regression-gates
 source: [07-01-SUMMARY.md, 07-02-SUMMARY.md, 07-03-SUMMARY.md]
 started: 2026-02-27T07:59:58.825Z
-updated: 2026-02-27T08:20:52.935Z
+updated: 2026-02-27T08:21:35.248Z
 ---
 
 ## Current Test
@@ -51,5 +51,13 @@ skipped: 2
   reason: "User reported: i cant do anything only with keyboard i guess which buttons to pressed etc i dont knwo anything and also i only see a very minimal ui with soim ebuttons etc in this url http://127.0.0.1:8787/panel their is no ui for the builder or something"
   severity: major
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "Verification used /panel runtime where builder UI is not exposed; phase outputs are model-level accessibility metadata/tests and the UAT path lacked a builder-capable prerequisite flow."
+  artifacts:
+    - path: ".planning/phases/07-accessibility-and-regression-gates/07-01-SUMMARY.md"
+      issue: "Deliverables validated accessibility contracts in runtime models/tests, not a manually navigable builder route."
+    - path: ".planning/phases/07-accessibility-and-regression-gates/07-UAT.md"
+      issue: "User feedback confirms only minimal panel UI was available at /panel and builder controls were inaccessible."
+  missing:
+    - "Define and document a builder-enabled verification entrypoint/prerequisite setup before conversational UAT."
+    - "Add a deterministic smoke check that fails fast when builder surface is unavailable for keyboard/focus validation."
+  debug_session: ".planning/debug/a11y-builder-surface-unavailable.md"
