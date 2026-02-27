@@ -19,6 +19,10 @@ import {
 } from "../dashboard/DashboardBuilderModel";
 import type { DashboardBuilderFeedback } from "../../../../../shared/src/contracts/dashboard/dashboard-builder-feedback";
 import {
+  type FocusVisibilityMetadata,
+  toFocusVisibilityMetadata
+} from "../../../../../shared/src/contracts/ui/accessibility-standards";
+import {
   createDesktopControlPanelAppearance,
   createDesktopSurfaceAppearance,
   mapDesktopToneToSemantic,
@@ -37,8 +41,18 @@ export interface DesktopControlPanelRuntimeModel {
   trustedDevicesPanel: TrustedDevicesPanelModel;
   actionHistoryPanel: ActionHistoryPanelModel;
   dashboardBuilder: DashboardBuilderRuntimeModel;
+  accessibility: DesktopControlPanelAccessibilityMetadata;
   feedbackMessage?: DesktopControlPanelFeedbackMessage;
   appearance: DesktopControlPanelAppearance;
+}
+
+export interface DesktopControlPanelAccessibilityMetadata {
+  sections: {
+    connectionBanner: FocusVisibilityMetadata;
+    trustedDevicesPanel: FocusVisibilityMetadata;
+    actionHistoryPanel: FocusVisibilityMetadata;
+    dashboardBuilder: FocusVisibilityMetadata;
+  };
 }
 
 export interface DesktopControlPanelFeedbackMessage {
@@ -86,6 +100,10 @@ export async function createDesktopControlPanelRuntimeModel(
     trustedDevicesPanel,
     actionHistoryPanel,
     dashboardBuilder,
+    accessibility: createControlPanelAccessibilityMetadata(
+      mapDesktopToneToSemantic(connectionBanner.tone),
+      dashboardBuilder
+    ),
     feedbackMessage: selectFeedbackMessage(connectionBanner, latestBuilderFeedback ?? dashboardBuilder.latestFeedback),
     appearance: createDesktopControlPanelAppearance()
   };
@@ -151,6 +169,10 @@ export function createDesktopControlPanelRuntimeHandlers(
           "banner",
           mapDesktopToneToSemantic(connectionBanner.tone)
         ),
+        accessibility: createControlPanelAccessibilityMetadata(
+          mapDesktopToneToSemantic(connectionBanner.tone),
+          model.dashboardBuilder
+        ),
         feedbackMessage: selectFeedbackMessage(connectionBanner, latestBuilderFeedback)
       };
       if (modelWithLiveStatus.feedbackMessage && modelWithLiveStatus.feedbackMessage.id === lastFeedbackMessageId) {
@@ -166,6 +188,26 @@ export function createDesktopControlPanelRuntimeHandlers(
     },
     subscribeStatus: (listener) => runtime.subscribeStatus(listener),
     dashboardBuilder: wrappedBuilderHandlers
+  };
+}
+
+function createControlPanelAccessibilityMetadata(
+  connectionTone: ReturnType<typeof mapDesktopToneToSemantic>,
+  builderModel: DashboardBuilderRuntimeModel
+): DesktopControlPanelAccessibilityMetadata {
+  return {
+    sections: {
+      connectionBanner: toFocusVisibilityMetadata(
+        createDesktopSurfaceAppearance("banner", connectionTone).states.focus
+      ),
+      trustedDevicesPanel: toFocusVisibilityMetadata(
+        createDesktopSurfaceAppearance("control", "neutral").states.focus
+      ),
+      actionHistoryPanel: toFocusVisibilityMetadata(
+        createDesktopSurfaceAppearance("control", "neutral").states.focus
+      ),
+      dashboardBuilder: builderModel.accessibility.primaryControls["tile-list"].focus
+    }
   };
 }
 

@@ -16,9 +16,17 @@ import {
   type DashboardBuilderFeedback,
   type DashboardBuilderFeedbackOperation
 } from "../../../../../shared/src/contracts/dashboard/dashboard-builder-feedback";
+import {
+  DESKTOP_PRIMARY_KEYBOARD_CONTROLS,
+  type DesktopPrimaryKeyboardControl,
+  type FocusVisibilityMetadata,
+  type KeyboardOperabilityMetadata,
+  toFocusVisibilityMetadata
+} from "../../../../../shared/src/contracts/ui/accessibility-standards";
 import { DesktopConnectivityRuntime } from "../../runtime/connectivity/desktop-connectivity-runtime";
 import {
   createDesktopControlPanelAppearance,
+  createDesktopSurfaceAppearance,
   createDesktopTileAppearance,
   type DesktopControlPanelAppearance,
   type DesktopSurfaceAppearance
@@ -56,8 +64,17 @@ export interface DashboardBuilderRuntimeModel {
   editor: DashboardBuilderEditorState;
   isDirty: boolean;
   interaction: DashboardBuilderInteractionState;
+  accessibility: DashboardBuilderAccessibilityMetadata;
   latestFeedback?: DashboardBuilderFeedback;
   appearance: DesktopControlPanelAppearance;
+}
+
+export interface DashboardBuilderAccessibilityMetadata {
+  keyboard: KeyboardOperabilityMetadata;
+  primaryControls: Record<DesktopPrimaryKeyboardControl, {
+    keyboardOperable: true;
+    focus: FocusVisibilityMetadata;
+  }>;
 }
 
 export interface DashboardBuilderInteractionState {
@@ -343,8 +360,43 @@ function createDashboardBuilderModel(
       canSave: isDirty,
       editorMode: selected ? "edit" : "create"
     },
+    accessibility: createBuilderAccessibilityMetadata(),
     latestFeedback,
     appearance: createDesktopControlPanelAppearance()
+  };
+}
+
+function createBuilderAccessibilityMetadata(): DashboardBuilderAccessibilityMetadata {
+  const tileFocus = toFocusVisibilityMetadata(
+    createDesktopTileAppearance("neutral").states.focus
+  );
+  const controlFocus = toFocusVisibilityMetadata(
+    createDesktopSurfaceAppearance("control", "neutral").states.focus
+  );
+
+  return {
+    keyboard: {
+      controls: [...DESKTOP_PRIMARY_KEYBOARD_CONTROLS],
+      primaryPath: [...DESKTOP_PRIMARY_KEYBOARD_CONTROLS]
+    },
+    primaryControls: {
+      "tile-list": {
+        keyboardOperable: true,
+        focus: tileFocus
+      },
+      "tile-editor": {
+        keyboardOperable: true,
+        focus: controlFocus
+      },
+      "tile-reorder": {
+        keyboardOperable: true,
+        focus: controlFocus
+      },
+      "layout-save": {
+        keyboardOperable: true,
+        focus: controlFocus
+      }
+    }
   };
 }
 
