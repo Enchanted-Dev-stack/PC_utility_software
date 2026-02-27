@@ -16,7 +16,7 @@ The roadmap keeps v1.0 runtime behavior intact while raising product quality for
 - [x] **Phase 4: Unified Visual System** - Establish shared visual language and state semantics across builder and dashboard.
 - [x] **Phase 5: Builder Interaction Clarity** - Remove ambiguous UI states and make editing feedback concise and trustworthy. (completed 2026-02-27)
 - [x] **Phase 6: Preview Fidelity and Persistence** - Ensure desktop edits and saved order are faithfully reflected in mobile preview. (completed 2026-02-27)
-- [ ] **Phase 7: Accessibility and Regression Gates** - Lock keyboard/touch accessibility baseline and pre-release UI regression checks.
+- [x] **Phase 7: Accessibility and Regression Gates** - Lock keyboard/touch accessibility baseline and pre-release UI regression checks. (completed 2026-02-27)
 
 ## Phase Details
 
@@ -148,4 +148,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Unified Visual System | 3/3 | Complete | 2026-02-27 |
 | 5. Builder Interaction Clarity | 3/3 | Complete | 2026-02-27 |
 | 6. Preview Fidelity and Persistence | 3/3 | Complete | 2026-02-27 |
-| 7. Accessibility and Regression Gates | 3/3 | In Progress | - |
+| 7. Accessibility and Regression Gates | 3/3 | Complete | 2026-02-27 |
