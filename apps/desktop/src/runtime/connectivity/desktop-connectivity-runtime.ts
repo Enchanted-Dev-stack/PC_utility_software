@@ -54,6 +54,10 @@ import {
   DashboardLayoutService,
   type DashboardMutationResult
 } from "../dashboard/dashboard-layout-service";
+import {
+  InMemoryDashboardLayoutPersistence,
+  type DashboardLayoutPersistence
+} from "../dashboard/dashboard-layout-persistence";
 import { SessionAuthGuard } from "../../connectivity/session/session-auth-guard";
 
 export type RuntimeConnectResult =
@@ -91,6 +95,7 @@ export interface DesktopConnectivityRuntimeConfig {
   actionExecutors?: Partial<ActionExecutorMap>;
   actionPlatform?: NodeJS.Platform;
   mediaWindowsAdapter?: MediaControlPlatformAdapter;
+  dashboardLayoutPersistence?: DashboardLayoutPersistence;
   actionNow?: () => string;
   now?: () => string;
 }
@@ -178,7 +183,10 @@ export class DesktopConnectivityRuntime {
       now: config.actionNow ?? now
     });
     this.actionRuntime = new ActionRequestRuntime(actionGuard, orchestrator);
-    this.dashboardLayoutService = new DashboardLayoutService({ now });
+    this.dashboardLayoutService = new DashboardLayoutService({
+      now,
+      persistence: config.dashboardLayoutPersistence ?? new InMemoryDashboardLayoutPersistence()
+    });
   }
 
   public async scanHosts(requesterDeviceId: string): Promise<DiscoveryHostMetadata[]> {

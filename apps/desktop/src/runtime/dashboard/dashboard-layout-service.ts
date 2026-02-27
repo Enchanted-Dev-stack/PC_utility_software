@@ -11,11 +11,16 @@ import {
   validateDashboardTileUpdateInput
 } from "../../../../../shared/src/contracts/dashboard/dashboard-tile";
 import { DashboardLayoutEvents } from "./dashboard-layout-events";
+import {
+  InMemoryDashboardLayoutPersistence,
+  type DashboardLayoutPersistence
+} from "./dashboard-layout-persistence";
 import { DashboardLayoutStore } from "./dashboard-layout-store";
 
 export interface DashboardLayoutServiceConfig {
   store?: DashboardLayoutStore;
   events?: DashboardLayoutEvents;
+  persistence?: DashboardLayoutPersistence;
   idFactory?: () => string;
   now?: () => string;
 }
@@ -42,11 +47,14 @@ export type DashboardMutationResult<T = DashboardLayoutSnapshot> =
 export class DashboardLayoutService {
   private readonly store: DashboardLayoutStore;
   private readonly events: DashboardLayoutEvents;
+  private readonly persistence: DashboardLayoutPersistence;
   private readonly idFactory: () => string;
   private readonly now: () => string;
 
   public constructor(config: DashboardLayoutServiceConfig = {}) {
-    this.store = config.store ?? new DashboardLayoutStore();
+    this.persistence = config.persistence ?? new InMemoryDashboardLayoutPersistence();
+    const hydratedSnapshot = this.persistence.readSnapshot();
+    this.store = config.store ?? new DashboardLayoutStore(hydratedSnapshot ?? undefined);
     this.events = config.events ?? new DashboardLayoutEvents();
     this.idFactory = config.idFactory ?? (() => randomUUID());
     this.now = config.now ?? (() => new Date().toISOString());
@@ -84,6 +92,7 @@ export class DashboardLayoutService {
     };
 
     const snapshot = this.store.createTile(tile, createdAt);
+    this.persistence.writeSnapshot(snapshot);
     this.events.emit(snapshot);
     return {
       ok: true,
@@ -122,6 +131,7 @@ export class DashboardLayoutService {
       };
     }
 
+    this.persistence.writeSnapshot(snapshot);
     this.events.emit(snapshot);
     return {
       ok: true,
@@ -152,6 +162,7 @@ export class DashboardLayoutService {
       };
     }
 
+    this.persistence.writeSnapshot(snapshot);
     this.events.emit(snapshot);
     return {
       ok: true,
@@ -171,6 +182,7 @@ export class DashboardLayoutService {
       };
     }
 
+    this.persistence.writeSnapshot(snapshot);
     this.events.emit(snapshot);
     return {
       ok: true,
