@@ -65,11 +65,25 @@ describe("desktop live preview", () => {
     expect(updates[updates.length - 1]).toBe("Music");
   });
 
-  it("normalizes tile ordering by order index", () => {
+  it("normalizes projection ordering by order index and tile id", () => {
     const model = createDashboardLivePreviewModel({
       version: 9,
       updatedAt: "2026-02-27T12:00:00.000Z",
       tiles: [
+        {
+          id: "tile-c",
+          label: "Third",
+          icon: "media",
+          order: 1,
+          createdAt: "2026-02-27T12:00:00.000Z",
+          updatedAt: "2026-02-27T12:00:00.000Z",
+          action: {
+            actionType: "media_control",
+            payload: {
+              command: "next"
+            }
+          }
+        },
         {
           id: "tile-b",
           label: "Second",
@@ -102,7 +116,8 @@ describe("desktop live preview", () => {
     });
 
     expect(model.layoutVersion).toBe(9);
-    expect(model.tiles.map((tile) => tile.id)).toEqual(["tile-a", "tile-b"]);
+    expect(model.tiles.map((tile) => tile.id)).toEqual(["tile-a", "tile-b", "tile-c"]);
+    expect(model.tiles.map((tile) => tile.order)).toEqual([0, 1, 2]);
   });
 });
 
@@ -186,10 +201,24 @@ describe("live preview synchronization", () => {
     expect(desktopModel.layoutVersion).toBe(mobileModel.layoutVersion);
     expect(desktopModel.updatedAt).toBe(mobileModel.updatedAt);
     expect(desktopModel.tiles.map((tile) => tile.id)).toEqual(mobileModel.tiles.map((tile) => tile.id));
+    expect(desktopModel.tiles.map((tile) => tile.icon)).toEqual(mobileModel.tiles.map((tile) => tile.icon));
+    expect(desktopModel.tiles.map((tile) => tile.order)).toEqual(mobileModel.tiles.map((tile) => tile.order));
+    expect(desktopModel.tiles.map((tile) => tile.actionSummary)).toEqual(
+      mobileModel.tiles.map((tile) => tile.actionSummary)
+    );
     expect(desktopModel.tiles.map((tile) => tile.label)).toEqual(mobileModel.tiles.map((tile) => tile.label));
+    expect(desktopModel.tiles.map((tile) => tile.appearance.typographyRole)).toEqual(
+      mobileModel.tiles.map((tile) => tile.appearance.typographyRole)
+    );
+    expect(desktopModel.tiles.map((tile) => tile.appearance.spacingRole)).toEqual(
+      mobileModel.tiles.map((tile) => tile.appearance.spacingRole)
+    );
     expect(desktopModel.tiles.map((tile) => tile.appearance.semanticTone)).toEqual(
       mobileModel.tiles.map((tile) => tile.appearance.semanticTone)
     );
+    expect(
+      desktopModel.tiles.map((tile) => Object.keys(tile.appearance.states).sort().join(","))
+    ).toEqual(mobileModel.tiles.map((tile) => Object.keys(tile.appearance.states).sort().join(",")));
     expect(desktopModel.tiles.map((tile) => tile.label)).toEqual(["Apps", "Browser"]);
   });
 
