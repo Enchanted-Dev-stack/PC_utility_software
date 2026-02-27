@@ -886,7 +886,7 @@ class _TileScreenState extends State<TileScreen> {
             await _run(_refreshPreview);
           },
           child: ListView(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(activeTheme.screenPadding),
             children: [
               if (previewTiles.isEmpty)
                 SizedBox(
@@ -908,7 +908,7 @@ class _TileScreenState extends State<TileScreen> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     const gridColumns = 4;
-                    const gap = 10.0;
+                    final gap = activeTheme.gridGap;
                     const rowHeight = 96.0;
                     final placements = _buildPlacements(previewTiles, gridColumns: gridColumns);
 
@@ -1053,6 +1053,8 @@ class _TileVisualTheme {
     required this.radius,
     required this.borderWidth,
     required this.shadows,
+    required this.gridGap,
+    required this.screenPadding,
   });
 
   final String id;
@@ -1065,6 +1067,8 @@ class _TileVisualTheme {
   final double radius;
   final double borderWidth;
   final List<BoxShadow> shadows;
+  final double gridGap;
+  final double screenPadding;
 }
 
 const List<_TileVisualTheme> _themes = [
@@ -1085,6 +1089,8 @@ const List<_TileVisualTheme> _themes = [
         blurRadius: 0,
       ),
     ],
+    gridGap: 10,
+    screenPadding: 10,
   ),
   _TileVisualTheme(
     id: 'glass',
@@ -1103,6 +1109,8 @@ const List<_TileVisualTheme> _themes = [
         blurRadius: 22,
       ),
     ],
+    gridGap: 10,
+    screenPadding: 10,
   ),
   _TileVisualTheme(
     id: 'midnight',
@@ -1121,6 +1129,22 @@ const List<_TileVisualTheme> _themes = [
         blurRadius: 20,
       ),
     ],
+    gridGap: 10,
+    screenPadding: 10,
+  ),
+  _TileVisualTheme(
+    id: 'divider_grid',
+    name: 'Divider Grid',
+    background: Color(0xFFF8FAFC),
+    border: Color(0xFF94A3B8),
+    text: Color(0xFF0F172A),
+    meta: Color(0xFF475569),
+    iconTint: Color(0x0F0F172A),
+    radius: 0,
+    borderWidth: 0.9,
+    shadows: [],
+    gridGap: 0,
+    screenPadding: 0,
   ),
 ];
 
