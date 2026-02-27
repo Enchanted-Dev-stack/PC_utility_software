@@ -1,4 +1,5 @@
 import type { DashboardLayoutSnapshot } from "../../../../../shared/src/contracts/dashboard/dashboard-tile";
+import { projectDashboardPreview } from "../../../../../shared/src/contracts/dashboard/dashboard-preview-projection";
 import type { DesktopConnectivityRuntime } from "../../runtime/connectivity/desktop-connectivity-runtime";
 import { createDesktopPreviewTileAppearance, type DesktopSurfaceAppearance } from "../visual-system/desktop-visual-theme";
 
@@ -25,10 +26,14 @@ export interface DashboardLivePreviewRuntimeHandlers {
 export function createDashboardLivePreviewModel(
   snapshot: DashboardLayoutSnapshot
 ): DashboardLivePreviewModel {
+  const projection = projectDashboardPreview(snapshot);
   return {
-    layoutVersion: snapshot.version,
-    updatedAt: snapshot.updatedAt,
-    tiles: toPreviewTiles(snapshot)
+    layoutVersion: projection.layoutVersion,
+    updatedAt: projection.updatedAt,
+    tiles: projection.tiles.map((tile) => ({
+      ...tile,
+      appearance: createDesktopPreviewTileAppearance("neutral")
+    }))
   };
 }
 
@@ -49,36 +54,4 @@ export function createDashboardLivePreviewRuntimeHandlers(
       });
     }
   };
-}
-
-function summarizeAction(action: DashboardLayoutSnapshot["tiles"][number]["action"]): string {
-  if (action.actionType === "open_app") {
-    return `Open app: ${action.payload.appId}`;
-  }
-
-  if (action.actionType === "open_website") {
-    return `Open website: ${action.payload.url}`;
-  }
-
-  return action.payload.value === undefined
-    ? `Media control: ${action.payload.command}`
-    : `Media control: ${action.payload.command} (${action.payload.value})`;
-}
-
-function toPreviewTiles(snapshot: DashboardLayoutSnapshot): DashboardPreviewTileModel[] {
-  return [...snapshot.tiles]
-    .sort((left, right) => {
-      if (left.order !== right.order) {
-        return left.order - right.order;
-      }
-      return left.id.localeCompare(right.id);
-    })
-    .map((tile, index) => ({
-      id: tile.id,
-      label: tile.label,
-      icon: tile.icon,
-      order: index,
-      actionSummary: summarizeAction(tile.action),
-      appearance: createDesktopPreviewTileAppearance("neutral")
-    }));
 }
