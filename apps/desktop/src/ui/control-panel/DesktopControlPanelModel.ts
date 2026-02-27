@@ -98,6 +98,25 @@ export function createDesktopControlPanelRuntimeHandlers(
   const dashboardBuilder = createDashboardBuilderRuntimeHandlers(runtime);
   let lastFeedbackMessageId: string | undefined;
   let latestBuilderFeedback: DashboardBuilderFeedback | undefined;
+  let latestStatusSnapshot = runtime.getConnectionStatus();
+  let latestStatusEvent: {
+    previous: RuntimeConnectionStatusSnapshot;
+    current: RuntimeConnectionStatusSnapshot;
+    toast?: string;
+  } = {
+    previous: latestStatusSnapshot,
+    current: latestStatusSnapshot,
+    toast: undefined
+  };
+
+  runtime.subscribeStatus((event) => {
+    latestStatusEvent = {
+      previous: latestStatusSnapshot,
+      current: event.snapshot,
+      toast: event.toast
+    };
+    latestStatusSnapshot = event.snapshot;
+  });
 
   const wrapBuilderMutation = async (
     callback: () => Promise<DashboardBuilderMutationResult>
@@ -119,16 +138,31 @@ export function createDesktopControlPanelRuntimeHandlers(
   return {
     getModel: async () => {
       const model = await createDesktopControlPanelRuntimeModel(runtime, options, latestBuilderFeedback);
-      if (model.feedbackMessage && model.feedbackMessage.id === lastFeedbackMessageId) {
+      const connectionBanner = mergeConnectionSnapshot(
+        latestStatusEvent.previous,
+        latestStatusEvent.current,
+        runtime,
+        latestStatusEvent.toast
+      );
+      const modelWithLiveStatus: DesktopControlPanelRuntimeModel = {
+        ...model,
+        connectionBanner,
+        connectionBannerAppearance: createDesktopSurfaceAppearance(
+          "banner",
+          mapDesktopToneToSemantic(connectionBanner.tone)
+        ),
+        feedbackMessage: selectFeedbackMessage(connectionBanner, latestBuilderFeedback)
+      };
+      if (modelWithLiveStatus.feedbackMessage && modelWithLiveStatus.feedbackMessage.id === lastFeedbackMessageId) {
         return {
-          ...model,
+          ...modelWithLiveStatus,
           feedbackMessage: undefined
         };
       }
-      if (model.feedbackMessage) {
-        lastFeedbackMessageId = model.feedbackMessage.id;
+      if (modelWithLiveStatus.feedbackMessage) {
+        lastFeedbackMessageId = modelWithLiveStatus.feedbackMessage.id;
       }
-      return model;
+      return modelWithLiveStatus;
     },
     subscribeStatus: (listener) => runtime.subscribeStatus(listener),
     dashboardBuilder: wrappedBuilderHandlers

@@ -84,7 +84,19 @@ function toToast(
   }
 
   return {
-    id: `desktop-status-${scope}`,
+    id: `desktop-status-${scope}-${toToastIdentitySuffix(toastMessage)}`,
     message: toastMessage
   };
+}
+
+function toToastIdentitySuffix(message: string): string {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return "empty";
+  }
+
+  return normalized
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "empty";
 }

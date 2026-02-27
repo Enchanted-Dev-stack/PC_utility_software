@@ -4,7 +4,8 @@ import {
   createDesktopControlPanelRuntimeHandlers,
   areRowsNewestFirst,
   createDesktopControlPanelRuntimeModel,
-  hasRecentActionRows
+  hasRecentActionRows,
+  mergeConnectionSnapshot
 } from "../../apps/desktop/src/ui/control-panel/DesktopControlPanelModel";
 
 describe("desktop control panel runtime model", () => {
@@ -121,11 +122,15 @@ describe("desktop control panel runtime model", () => {
     const runtime = createRuntime();
     const handlers = createDesktopControlPanelRuntimeHandlers(runtime);
 
+    const previous = runtime.getConnectionStatus();
     runtime.setReconnecting("host-primary", 1);
+    const current = runtime.getConnectionStatus();
+    const reconnectingBanner = mergeConnectionSnapshot(previous, current, runtime, "Reconnecting...");
+    expect(reconnectingBanner.toast?.id).toContain("desktop-status-reconnecting-reconnecting");
+
     const reconnectingModel = await handlers.getModel();
-    expect(reconnectingModel.connectionBanner.toast?.id).toContain("desktop-status-reconnecting-reconnecting");
     expect(reconnectingModel.feedbackMessage).toEqual({
-      id: reconnectingModel.connectionBanner.toast?.id,
+      id: reconnectingBanner.toast?.id,
       source: "connection",
       message: "Reconnecting..."
     });
