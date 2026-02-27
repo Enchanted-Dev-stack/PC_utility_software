@@ -1,4 +1,5 @@
 import { createMobileDashboardModel } from "../../apps/mobile/src/ui/dashboard/MobileDashboardModel";
+import { createDashboardLivePreviewModel } from "../../apps/desktop/src/ui/dashboard/DashboardLivePreviewModel";
 import { buildActionTilesGateModel } from "../../apps/mobile/src/ui/controls/ActionTilesGate";
 import { buildConnectionStatusBannerModel } from "../../apps/mobile/src/ui/connection-status/ConnectionStatusBanner";
 
@@ -55,5 +56,50 @@ describe("mobile semantic mapping", () => {
     });
     expect(disconnectedBanner.semanticTone).toBe("error");
     expect(disconnectedBanner.appearance.semanticTone).toBe("error");
+  });
+
+  it("keeps tile appearance roles and required state keys aligned with desktop preview", () => {
+    const snapshot = {
+      version: 3,
+      updatedAt: "2026-02-27T14:10:00.000Z",
+      tiles: [
+        {
+          id: "tile-1",
+          label: "Browser",
+          icon: "browser" as const,
+          order: 0,
+          createdAt: "2026-02-27T14:00:00.000Z",
+          updatedAt: "2026-02-27T14:00:00.000Z",
+          action: {
+            actionType: "open_website" as const,
+            payload: {
+              url: "https://example.com"
+            }
+          }
+        }
+      ]
+    };
+
+    const mobileModel = createMobileDashboardModel(snapshot);
+    const desktopModel = createDashboardLivePreviewModel(snapshot);
+
+    expect(mobileModel.tiles.map((tile) => tile.appearance.typographyRole)).toEqual(
+      desktopModel.tiles.map((tile) => tile.appearance.typographyRole)
+    );
+    expect(mobileModel.tiles.map((tile) => tile.appearance.spacingRole)).toEqual(
+      desktopModel.tiles.map((tile) => tile.appearance.spacingRole)
+    );
+    expect(mobileModel.tiles.map((tile) => tile.appearance.semanticTone)).toEqual(
+      desktopModel.tiles.map((tile) => tile.appearance.semanticTone)
+    );
+    expect(
+      mobileModel.tiles.map((tile) => Object.keys(tile.appearance.states).sort().join(","))
+    ).toEqual(
+      desktopModel.tiles.map((tile) => Object.keys(tile.appearance.states).sort().join(","))
+    );
+
+    expect(typeof mobileModel.tiles[0].appearance.states.default.textColor).toBe("string");
+    expect(mobileModel.tiles[0].appearance.states.focus.focusRingVisible).toBe(true);
+    expect(mobileModel.tiles[0].appearance.states.disabled.opacity).toBeLessThan(1);
   });
 });
