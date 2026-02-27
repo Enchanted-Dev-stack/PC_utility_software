@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "jest"
+    "build": "tsc -p tsconfig.json",
+    "server": "npm run build && node dist/apps/desktop/src/runtime/server.js",
+    "test": "jest",
+    "test:ui-gates": "npm run test -- tests/ui/accessibility-regression.spec.ts tests/ui/visual-system-parity.spec.ts tests/dashboard/dashboard-builder-live-preview-integration.spec.ts --runInBand"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
