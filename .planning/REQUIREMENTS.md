@@ -33,7 +33,7 @@
 
 - [x] **A11Y-01**: User can navigate primary desktop builder controls with visible keyboard focus and sufficient contrast.
 - [x] **A11Y-02**: User can read and interact with critical UI text/controls on desktop and mobile at accessible sizes/targets.
-- [ ] **QA-01**: Team can run automated visual/accessibility checks that detect UI regressions before release.
+- [x] **QA-01**: Team can run automated visual/accessibility checks that detect UI regressions before release.
 
 ## Future Requirements (Deferred)
 
@@ -69,7 +69,7 @@
 | PRV-03 | Phase 6 | Complete |
 | A11Y-01 | Phase 7 | Complete |
 | A11Y-02 | Phase 7 | Complete |
-| QA-01 | Phase 7 | Pending |
+| QA-01 | Phase 7 | Complete |
 
 **Coverage:**
 - milestone requirements: 12 total
@@ -78,4 +78,4 @@
 
 ---
 *Requirements defined: 2026-02-27*
-*Last updated: 2026-02-27 after Phase 7 plan 07-02 execution*
+*Last updated: 2026-02-27 after Phase 7 plan 07-03 execution*
