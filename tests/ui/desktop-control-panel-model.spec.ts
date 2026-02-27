@@ -74,12 +74,76 @@ describe("desktop control panel runtime model", () => {
     });
     expect(model.dashboardBuilder.tiles[0].appearance.semanticTone).toBe("neutral");
     expect(model.dashboardBuilder.tiles[0].appearance.states.focus.focusRingVisible).toBe(true);
+    expect(model.feedbackMessage).toEqual({
+      id: expect.stringContaining("builder-"),
+      source: "builder",
+      message: "Tile created"
+    });
 
     expect(model.connectionBanner.label).toBeDefined();
     expect(model.connectionBannerAppearance.semanticTone).toBe("error");
     expect(model.appearance.canvasEmphasis).toBe("primary");
     expect(model.trustedDevicesPanel.title).toBe("Trusted devices");
     expect(model.actionHistoryPanel.title).toBe("Recent actions");
+  });
+
+  it("applies builder feedback dedupe boundaries for equivalent outcomes", async () => {
+    const runtime = createRuntime();
+    const handlers = createDesktopControlPanelRuntimeHandlers(runtime);
+
+    const initial = await handlers.getModel();
+    expect(initial.feedbackMessage).toBeUndefined();
+
+    const missingFirst = await handlers.dashboardBuilder.updateTile({
+      tileId: "missing",
+      label: "No change"
+    });
+    expect(missingFirst.ok).toBe(false);
+
+    const firstMessage = await handlers.getModel();
+    expect(firstMessage.feedbackMessage).toEqual({
+      id: expect.stringContaining("builder-update|failure|not_found|missing"),
+      source: "builder",
+      message: "Tile not found"
+    });
+
+    const missingSecond = await handlers.dashboardBuilder.updateTile({
+      tileId: "missing",
+      label: "No change"
+    });
+    expect(missingSecond.ok).toBe(false);
+
+    const duplicateSuppressed = await handlers.getModel();
+    expect(duplicateSuppressed.feedbackMessage).toBeUndefined();
+  });
+
+  it("keeps connection toast coexistence with builder feedback channels", async () => {
+    const runtime = createRuntime();
+    const handlers = createDesktopControlPanelRuntimeHandlers(runtime);
+
+    runtime.setReconnecting("host-primary", 1);
+    const reconnectingModel = await handlers.getModel();
+    expect(reconnectingModel.connectionBanner.toast?.id).toContain("desktop-status-reconnecting-reconnecting");
+    expect(reconnectingModel.feedbackMessage).toEqual({
+      id: reconnectingModel.connectionBanner.toast?.id,
+      source: "connection",
+      message: "Reconnecting..."
+    });
+
+    const created = await handlers.dashboardBuilder.createTile({
+      label: "Browser",
+      icon: "browser",
+      actionType: "open_website",
+      url: "https://example.com"
+    });
+    expect(created.ok).toBe(true);
+
+    const builderModel = await handlers.getModel();
+    expect(builderModel.feedbackMessage).toEqual({
+      id: expect.stringContaining("builder-create|success"),
+      source: "builder",
+      message: "Tile created"
+    });
   });
 });
 

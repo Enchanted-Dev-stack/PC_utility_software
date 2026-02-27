@@ -13,9 +13,11 @@ import {
 import {
   createDashboardBuilderRuntimeHandlers,
   createDashboardBuilderRuntimeModel,
+  type DashboardBuilderMutationResult,
   type DashboardBuilderRuntimeHandlers,
   type DashboardBuilderRuntimeModel
 } from "../dashboard/DashboardBuilderModel";
+import type { DashboardBuilderFeedback } from "../../../../../shared/src/contracts/dashboard/dashboard-builder-feedback";
 import {
   createDesktopControlPanelAppearance,
   createDesktopSurfaceAppearance,
@@ -35,7 +37,14 @@ export interface DesktopControlPanelRuntimeModel {
   trustedDevicesPanel: TrustedDevicesPanelModel;
   actionHistoryPanel: ActionHistoryPanelModel;
   dashboardBuilder: DashboardBuilderRuntimeModel;
+  feedbackMessage?: DesktopControlPanelFeedbackMessage;
   appearance: DesktopControlPanelAppearance;
+}
+
+export interface DesktopControlPanelFeedbackMessage {
+  id: string;
+  source: "builder" | "connection";
+  message: string;
 }
 
 export interface DesktopControlPanelRuntimeModelOptions {
@@ -50,7 +59,8 @@ export interface DesktopControlPanelRuntimeHandlers {
 
 export async function createDesktopControlPanelRuntimeModel(
   runtime: DesktopConnectivityRuntime,
-  options: DesktopControlPanelRuntimeModelOptions = {}
+  options: DesktopControlPanelRuntimeModelOptions = {},
+  latestBuilderFeedback?: DashboardBuilderFeedback
 ): Promise<DesktopControlPanelRuntimeModel> {
   const connection = runtime.getConnectionStatus();
   const header = runtime.getHeaderStatus();
@@ -76,6 +86,7 @@ export async function createDesktopControlPanelRuntimeModel(
     trustedDevicesPanel,
     actionHistoryPanel,
     dashboardBuilder,
+    feedbackMessage: selectFeedbackMessage(connectionBanner, latestBuilderFeedback ?? dashboardBuilder.latestFeedback),
     appearance: createDesktopControlPanelAppearance()
   };
 }
@@ -85,11 +96,42 @@ export function createDesktopControlPanelRuntimeHandlers(
   options: DesktopControlPanelRuntimeModelOptions = {}
 ): DesktopControlPanelRuntimeHandlers {
   const dashboardBuilder = createDashboardBuilderRuntimeHandlers(runtime);
+  let lastFeedbackMessageId: string | undefined;
+  let latestBuilderFeedback: DashboardBuilderFeedback | undefined;
+
+  const wrapBuilderMutation = async (
+    callback: () => Promise<DashboardBuilderMutationResult>
+  ): Promise<DashboardBuilderMutationResult> => {
+    const result = await callback();
+    latestBuilderFeedback = result.feedback;
+    return result;
+  };
+
+  const wrappedBuilderHandlers: DashboardBuilderRuntimeHandlers = {
+    getModel: dashboardBuilder.getModel,
+    createTile: async (input) => wrapBuilderMutation(() => dashboardBuilder.createTile(input)),
+    updateTile: async (input) => wrapBuilderMutation(() => dashboardBuilder.updateTile(input)),
+    deleteTile: async (input) => wrapBuilderMutation(() => dashboardBuilder.deleteTile(input)),
+    moveTile: async (input) => wrapBuilderMutation(() => dashboardBuilder.moveTile(input)),
+    saveLayout: async (selectedTileId) => wrapBuilderMutation(() => dashboardBuilder.saveLayout(selectedTileId))
+  };
 
   return {
-    getModel: async () => createDesktopControlPanelRuntimeModel(runtime, options),
+    getModel: async () => {
+      const model = await createDesktopControlPanelRuntimeModel(runtime, options, latestBuilderFeedback);
+      if (model.feedbackMessage && model.feedbackMessage.id === lastFeedbackMessageId) {
+        return {
+          ...model,
+          feedbackMessage: undefined
+        };
+      }
+      if (model.feedbackMessage) {
+        lastFeedbackMessageId = model.feedbackMessage.id;
+      }
+      return model;
+    },
     subscribeStatus: (listener) => runtime.subscribeStatus(listener),
-    dashboardBuilder
+    dashboardBuilder: wrappedBuilderHandlers
   };
 }
 
@@ -122,4 +164,31 @@ export function mergeConnectionSnapshot(
     header: runtime.getHeaderStatus(),
     toastMessage
   });
+}
+
+function selectFeedbackMessage(
+  banner: DesktopConnectionStatusBannerModel,
+  builderFeedback?: DashboardBuilderFeedback
+): DesktopControlPanelFeedbackMessage | undefined {
+  if (builderFeedback) {
+    return toBuilderFeedbackMessage(builderFeedback);
+  }
+
+  if (!banner.toast) {
+    return undefined;
+  }
+
+  return {
+    id: banner.toast.id,
+    source: "connection",
+    message: banner.toast.message
+  };
+}
+
+function toBuilderFeedbackMessage(feedback: DashboardBuilderFeedback): DesktopControlPanelFeedbackMessage {
+  return {
+    id: `builder-${feedback.dedupeKey}`,
+    source: "builder",
+    message: feedback.message
+  };
 }
