@@ -111,6 +111,27 @@ describe("dashboard builder mutation feedback", () => {
     expect(invalidCreate.feedback.message).toBe("Tile label is required");
     expect(invalidCreate.feedback.message).not.toBe("Tile update is invalid");
   });
+
+  it("keeps no-op save feedback dedupe identity stable across repeats", async () => {
+    const runtime = createRuntime();
+    const handlers = createDashboardBuilderRuntimeHandlers(runtime);
+
+    const created = await handlers.createTile({
+      label: "One",
+      icon: "apps",
+      actionType: "open_app",
+      appId: "calculator"
+    });
+    expect(created.ok).toBe(true);
+
+    await handlers.saveLayout();
+    const firstNoop = await handlers.saveLayout();
+    const secondNoop = await handlers.saveLayout();
+
+    expect(firstNoop.feedback.outcome).toBe("noop");
+    expect(secondNoop.feedback.outcome).toBe("noop");
+    expect(firstNoop.feedback.dedupeKey).toBe(secondNoop.feedback.dedupeKey);
+  });
 });
 
 function createRuntime(): DesktopConnectivityRuntime {
