@@ -58,23 +58,23 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VIS-01 | Phase TBD | Pending |
-| VIS-02 | Phase TBD | Pending |
-| VIS-03 | Phase TBD | Pending |
-| UX-01 | Phase TBD | Pending |
-| UX-02 | Phase TBD | Pending |
-| UX-03 | Phase TBD | Pending |
-| PRV-01 | Phase TBD | Pending |
-| PRV-02 | Phase TBD | Pending |
-| PRV-03 | Phase TBD | Pending |
-| A11Y-01 | Phase TBD | Pending |
-| A11Y-02 | Phase TBD | Pending |
-| QA-01 | Phase TBD | Pending |
+| VIS-01 | Phase 4 | Pending |
+| VIS-02 | Phase 4 | Pending |
+| VIS-03 | Phase 4 | Pending |
+| UX-01 | Phase 5 | Pending |
+| UX-02 | Phase 5 | Pending |
+| UX-03 | Phase 5 | Pending |
+| PRV-01 | Phase 6 | Pending |
+| PRV-02 | Phase 6 | Pending |
+| PRV-03 | Phase 6 | Pending |
+| A11Y-01 | Phase 7 | Pending |
+| A11Y-02 | Phase 7 | Pending |
+| QA-01 | Phase 7 | Pending |
 
 **Coverage:**
 - milestone requirements: 12 total
-- Mapped to phases: 0
-- Unmapped: 12 ⚠️
+- Mapped to phases: 12
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-27*

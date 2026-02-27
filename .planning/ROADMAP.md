@@ -2,7 +2,7 @@
 
 ## Overview
 
-This roadmap delivers a local-first remote control MVP by first establishing trusted LAN connectivity, then proving deterministic action execution with feedback, and finally delivering the desktop dashboard builder with live mobile preview so customization sits on top of a reliable control loop.
+The roadmap keeps v1.0 runtime behavior intact while raising product quality for v1.1. After shipping trusted connectivity, deterministic actions, and dashboard editing foundations, the next phases focus on visual consistency, interaction clarity, preview fidelity, and accessibility/QA gates so desktop builder and mobile dashboard feel production-ready.
 
 ## Phases
 
@@ -13,6 +13,10 @@ This roadmap delivers a local-first remote control MVP by first establishing tru
 - [x] **Phase 1: Trusted Connectivity Foundation** - Ship secure discovery, pairing, reconnection, session trust, and device revocation.
 - [x] **Phase 2: Deterministic Action Runtime** - Deliver reliable action execution with explicit feedback and audit history.
 - [x] **Phase 3: Dashboard Builder and Live Preview** - Deliver full tile management workflows and real-time mobile layout preview.
+- [ ] **Phase 4: Unified Visual System** - Establish shared visual language and state semantics across builder and dashboard.
+- [ ] **Phase 5: Builder Interaction Clarity** - Remove ambiguous UI states and make editing feedback concise and trustworthy.
+- [ ] **Phase 6: Preview Fidelity and Persistence** - Ensure desktop edits and saved order are faithfully reflected in mobile preview.
+- [ ] **Phase 7: Accessibility and Regression Gates** - Lock keyboard/touch accessibility baseline and pre-release UI regression checks.
 
 ## Phase Details
 
@@ -71,13 +75,57 @@ Plans:
 - [x] 03-03-PLAN.md - Add desktop/mobile live-preview subscription models backed by shared runtime snapshots.
 - [x] 03-04-PLAN.md - Complete reorder/save + real-time builder-preview integration with end-to-end tests.
 
+### Phase 4: Unified Visual System
+**Goal**: Users experience one coherent visual language across desktop builder and mobile dashboard.
+**Depends on**: Phase 3
+**Requirements**: VIS-01, VIS-02, VIS-03
+**Success Criteria** (what must be TRUE):
+  1. User sees consistent typography scale and spacing rhythm in desktop builder, mobile dashboard, and live preview.
+  2. User sees the same color/elevation meaning for neutral, success, warning, and error states on both surfaces.
+  3. User sees shared component states (default, hover, focus, active, disabled, error) rendered consistently in core flows.
+**Plans**: TBD
+
+### Phase 5: Builder Interaction Clarity
+**Goal**: Users can complete builder workflows confidently with unambiguous affordances and concise feedback.
+**Depends on**: Phase 4
+**Requirements**: UX-01, UX-02, UX-03
+**Success Criteria** (what must be TRUE):
+  1. User gets immediate, clear feedback for tile create, edit, reorder, delete, and save actions.
+  2. User can complete common builder tasks without entering unclear, conflicting, or visually ambiguous states.
+  3. User sees concise success/failure messages without duplicate toasts, duplicate banners, or noisy repetition.
+**Plans**: TBD
+
+### Phase 6: Preview Fidelity and Persistence
+**Goal**: Users can trust that desktop edits and saved layout persist and appear identically in mobile preview.
+**Depends on**: Phase 5
+**Requirements**: PRV-01, PRV-02, PRV-03
+**Success Criteria** (what must be TRUE):
+  1. User edits tile label, icon, order, or spacing in desktop builder and sees matching updates in mobile preview.
+  2. User reorders tiles and saves on desktop, refreshes or reopens, and sees the same order preserved in mobile preview.
+  3. User does not observe visible style/state drift between desktop preview and mobile rendering for supported tile states.
+**Plans**: TBD
+
+### Phase 7: Accessibility and Regression Gates
+**Goal**: Users can operate critical controls accessibly while releases are protected by automated UI quality gates.
+**Depends on**: Phase 6
+**Requirements**: A11Y-01, A11Y-02, QA-01
+**Success Criteria** (what must be TRUE):
+  1. User can navigate primary desktop builder controls by keyboard and always see a visible focus indicator with readable contrast.
+  2. User can read and use critical text and controls on desktop and mobile with accessible text sizing and touch/click targets.
+  3. Maintainer can run automated visual and accessibility checks that fail on UI regressions before release.
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 1.1 -> 2 -> 2.1 -> 3
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Trusted Connectivity Foundation | 4/4 | Complete | 2026-02-26 |
 | 2. Deterministic Action Runtime | 5/5 | Complete | 2026-02-26 |
 | 3. Dashboard Builder and Live Preview | 4/4 | Complete | 2026-02-26 |
+| 4. Unified Visual System | 0/TBD | Not started | - |
+| 5. Builder Interaction Clarity | 0/TBD | Not started | - |
+| 6. Preview Fidelity and Persistence | 0/TBD | Not started | - |
+| 7. Accessibility and Regression Gates | 0/TBD | Not started | - |
