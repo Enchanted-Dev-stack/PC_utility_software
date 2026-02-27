@@ -5,6 +5,24 @@ const PORT = Number(process.env.PORT || 8787);
 const ACCESSIBILITY_VERIFICATION_ROUTE = "/verify/builder-accessibility";
 const MIN_TILE_SPAN = 1;
 const MAX_TILE_SPAN = 4;
+const ICON_CHOICES = [
+  "⭐",
+  "🔥",
+  "🎵",
+  "🌐",
+  "📝",
+  "🎬",
+  "📁",
+  "⚙️",
+  "🧠",
+  "🖥️",
+  "🎮",
+  "💡",
+  "🔒",
+  "📷",
+  "📞",
+  "🧩",
+];
 const BUILDER_SURFACE_CONTROL_IDS = [
   "create-tile",
   "edit-first-tile",
@@ -607,8 +625,23 @@ body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:linear-gradient
 .tile-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 12px;cursor:pointer}
 .tile-item:hover{border-color:#bae6fd;background:#f8fcff}
 .tile-item.active{border-color:var(--accent);background:#f0f9ff}
+.tile-item.drag-over{border-color:#0284c7;background:#e0f2fe}
 .tile-main{font-weight:600}
 .tile-sub{font-size:12px;color:var(--muted)}
+.icon-picker{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-bottom:10px}
+.icon-choice{height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-choice.active{border-color:var(--accent);background:#e0f2fe}
+.canvas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:72px;gap:10px;margin-top:8px}
+.canvas-tile{position:relative;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;display:flex;align-items:flex-end;padding:10px;cursor:grab;user-select:none}
+.canvas-tile.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(14,165,233,.18) inset}
+.canvas-tile.dragging{opacity:.45}
+.canvas-tile.drag-over{outline:2px dashed #0284c7;outline-offset:2px}
+.canvas-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:56px;opacity:.1;pointer-events:none}
+.canvas-content{position:relative;z-index:2}
+.canvas-label{font-weight:700;font-size:14px}
+.canvas-meta{font-size:11px;color:var(--muted)}
+.canvas-size{position:absolute;top:8px;left:8px;z-index:3;background:#e0f2fe;color:#0369a1;font-size:11px;border-radius:999px;padding:2px 8px}
+.resize-handle{position:absolute;right:8px;bottom:8px;width:14px;height:14px;border-radius:4px;border:1px solid #94a3b8;background:#f8fafc;cursor:nwse-resize;z-index:4}
 label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
 input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
 input:focus,select:focus,button:focus{outline:3px solid rgba(14,165,233,.2);outline-offset:1px}
@@ -664,6 +697,10 @@ th{color:var(--muted);font-weight:600}
           <input id="tile-icon" type="text" placeholder="e.g. 🎵 or 🔥"/>
         </div>
       </div>
+      <div>
+        <label>Icon Picker</label>
+        <div id="icon-picker" class="icon-picker"></div>
+      </div>
       <div class="row">
         <div>
           <label for="tile-cols">Tile Columns</label>
@@ -698,6 +735,12 @@ th{color:var(--muted);font-weight:600}
     </section>
 
     <section class="card" style="grid-column:1 / -1">
+      <h2>Layout Canvas</h2>
+      <div class="muted">Drag tiles to reorder. Drag bottom-right handle to resize (cols x rows).</div>
+      <div id="layout-canvas" class="canvas" aria-label="layout canvas"></div>
+    </section>
+
+    <section class="card" style="grid-column:1 / -1">
       <h2>Live Preview Payload</h2>
       <div class="muted">What the mobile app reads from <code>/preview</code>.</div>
       <pre id="preview-json"></pre>
@@ -718,11 +761,14 @@ th{color:var(--muted);font-weight:600}
 
 <script>
 const ACCESSIBILITY_VERIFICATION_ROUTE = "${ACCESSIBILITY_VERIFICATION_ROUTE}";
+const ICON_CHOICES = ${JSON.stringify(ICON_CHOICES)};
 const BOOT_DASHBOARD = ${bootDashboard};
 const BOOT_HISTORY = ${bootHistory};
 
 let dashboard = BOOT_DASHBOARD;
 let selectedTileId = null;
+let draggedTileId = null;
+let activeResize = null;
 
 function escapeHtml(text) {
   return String(text)
@@ -737,8 +783,235 @@ function setMessage(msg) {
   document.getElementById("editor-message").textContent = msg;
 }
 
+function selectedIconValue() {
+  return document.getElementById("tile-icon").value.trim();
+}
+
+function renderIconPicker() {
+  const picker = document.getElementById("icon-picker");
+  const selected = selectedIconValue();
+  picker.innerHTML = ICON_CHOICES
+    .map((icon) => {
+      const active = icon === selected ? " active" : "";
+      return '<button type="button" class="icon-choice' + active + '" data-icon="' + escapeHtml(icon) + '">' + escapeHtml(icon) + '</button>';
+    })
+    .join("");
+
+  picker.querySelectorAll("[data-icon]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const icon = button.getAttribute("data-icon") || "⭐";
+      document.getElementById("tile-icon").value = icon;
+      renderIconPicker();
+    });
+  });
+}
+
 function selectedTile() {
   return dashboard.tiles.find((t) => t.id === selectedTileId) || null;
+}
+
+function sortedTiles() {
+  return dashboard.tiles.slice().sort((a, b) => a.order - b.order);
+}
+
+function normalizeTileSpan(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.max(${MIN_TILE_SPAN}, Math.min(${MAX_TILE_SPAN}, Math.round(numeric)));
+}
+
+function iconGlyph(rawValue) {
+  const value = String(rawValue || "").trim();
+  return value || "⭐";
+}
+
+async function applyReorder(sourceId, targetId) {
+  const orderedIds = sortedTiles().map((tile) => tile.id);
+  const sourceIndex = orderedIds.indexOf(sourceId);
+  const targetIndex = orderedIds.indexOf(targetId);
+
+  if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
+    return;
+  }
+
+  orderedIds.splice(sourceIndex, 1);
+  orderedIds.splice(targetIndex, 0, sourceId);
+
+  await fetch("/dashboard/reorder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: orderedIds }),
+  });
+
+  setMessage("Reordered tiles.");
+  await refreshDashboard();
+  await refreshPreview();
+}
+
+function beginResize(tileId, handleElement, startEvent) {
+  startEvent.preventDefault();
+  startEvent.stopPropagation();
+
+  const tile = dashboard.tiles.find((entry) => entry.id === tileId);
+  if (!tile) {
+    return;
+  }
+
+  const canvas = document.getElementById("layout-canvas");
+  const canvasWidth = Math.max(canvas.clientWidth, 1);
+  const colWidth = (canvasWidth - (3 * 10)) / 4;
+
+  activeResize = {
+    tileId,
+    startX: startEvent.clientX,
+    startY: startEvent.clientY,
+    startCols: normalizeTileSpan(tile.spanCols, 2),
+    startRows: normalizeTileSpan(tile.spanRows, 1),
+    currentCols: normalizeTileSpan(tile.spanCols, 2),
+    currentRows: normalizeTileSpan(tile.spanRows, 1),
+    colStep: Math.max(colWidth + 10, 40),
+    rowStep: 72 + 10,
+    handleElement,
+  };
+}
+
+function onResizeMove(event) {
+  if (!activeResize) {
+    return;
+  }
+
+  const deltaX = event.clientX - activeResize.startX;
+  const deltaY = event.clientY - activeResize.startY;
+  const nextCols = normalizeTileSpan(
+    activeResize.startCols + Math.round(deltaX / activeResize.colStep),
+    activeResize.startCols,
+  );
+  const nextRows = normalizeTileSpan(
+    activeResize.startRows + Math.round(deltaY / activeResize.rowStep),
+    activeResize.startRows,
+  );
+
+  if (nextCols === activeResize.currentCols && nextRows === activeResize.currentRows) {
+    return;
+  }
+
+  activeResize.currentCols = nextCols;
+  activeResize.currentRows = nextRows;
+
+  const tileElement = activeResize.handleElement.closest(".canvas-tile");
+  if (!tileElement) {
+    return;
+  }
+
+  tileElement.style.gridColumn = "span " + nextCols;
+  tileElement.style.gridRow = "span " + nextRows;
+  const badge = tileElement.querySelector(".canvas-size");
+  if (badge) {
+    badge.textContent = nextCols + "x" + nextRows;
+  }
+}
+
+async function onResizeEnd() {
+  if (!activeResize) {
+    return;
+  }
+
+  const payload = {
+    spanCols: activeResize.currentCols,
+    spanRows: activeResize.currentRows,
+  };
+  const tileId = activeResize.tileId;
+  const didChange =
+    activeResize.currentCols !== activeResize.startCols ||
+    activeResize.currentRows !== activeResize.startRows;
+  activeResize = null;
+
+  if (!didChange) {
+    return;
+  }
+
+  await fetch("/dashboard/tiles/" + tileId, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  setMessage("Resized tile.");
+  await refreshDashboard();
+  await refreshPreview();
+}
+
+function renderLayoutCanvas() {
+  const canvas = document.getElementById("layout-canvas");
+  const tiles = sortedTiles();
+  canvas.innerHTML = tiles
+    .map((tile) => {
+      const cols = normalizeTileSpan(tile.spanCols, 2);
+      const rows = normalizeTileSpan(tile.spanRows, 1);
+      const active = tile.id === selectedTileId ? " active" : "";
+      return (
+        '<div class="canvas-tile' + active + '" draggable="true" data-tile-id="' + escapeHtml(tile.id) + '" style="grid-column: span ' + cols + '; grid-row: span ' + rows + ';">' +
+          '<div class="canvas-size">' + cols + 'x' + rows + '</div>' +
+          '<div class="canvas-icon">' + escapeHtml(iconGlyph(tile.icon)) + '</div>' +
+          '<div class="canvas-content"><div class="canvas-label">' + escapeHtml(tile.label) + '</div><div class="canvas-meta">' + escapeHtml(tile.actionType) + '</div></div>' +
+          '<div class="resize-handle" data-resize-handle="' + escapeHtml(tile.id) + '"></div>' +
+        '</div>'
+      );
+    })
+    .join("");
+
+  canvas.querySelectorAll(".canvas-tile").forEach((tileElement) => {
+    const tileId = tileElement.getAttribute("data-tile-id");
+    if (!tileId) {
+      return;
+    }
+
+    tileElement.addEventListener("click", () => {
+      selectTile(tileId);
+    });
+
+    tileElement.addEventListener("dragstart", (event) => {
+      draggedTileId = tileId;
+      tileElement.classList.add("dragging");
+      event.dataTransfer?.setData("text/plain", tileId);
+    });
+
+    tileElement.addEventListener("dragend", () => {
+      tileElement.classList.remove("dragging");
+      draggedTileId = null;
+      canvas.querySelectorAll(".canvas-tile").forEach((node) => node.classList.remove("drag-over"));
+    });
+
+    tileElement.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      tileElement.classList.add("drag-over");
+    });
+
+    tileElement.addEventListener("dragleave", () => {
+      tileElement.classList.remove("drag-over");
+    });
+
+    tileElement.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      tileElement.classList.remove("drag-over");
+      const sourceId = draggedTileId || event.dataTransfer?.getData("text/plain");
+      if (!sourceId || sourceId === tileId) {
+        return;
+      }
+      await applyReorder(sourceId, tileId);
+    });
+  });
+
+  canvas.querySelectorAll("[data-resize-handle]").forEach((handleElement) => {
+    handleElement.addEventListener("mousedown", (event) => {
+      const tileId = handleElement.getAttribute("data-resize-handle");
+      if (!tileId) {
+        return;
+      }
+      beginResize(tileId, handleElement, event);
+    });
+  });
 }
 
 function renderTileList() {
@@ -748,7 +1021,7 @@ function renderTileList() {
     .sort((a, b) => a.order - b.order)
     .map((tile) => {
       const active = tile.id === selectedTileId ? " active" : "";
-      return '<button class="tile-item' + active + '" data-tile-id="' + escapeHtml(tile.id) + '">' +
+      return '<button class="tile-item' + active + '" draggable="true" data-tile-id="' + escapeHtml(tile.id) + '">' +
         '<span><div class="tile-main">' + escapeHtml(tile.label) + '</div><div class="tile-sub">' + escapeHtml(tile.icon) + ' • ' + escapeHtml(tile.actionType) + (tile.actionValue ? (' • ' + escapeHtml(tile.actionValue)) : '') + ' • ' + tile.spanCols + 'x' + tile.spanRows + '</div></span>' +
         '<span class="tile-sub">#' + (tile.order + 1) + '</span>' +
       '</button>';
@@ -756,11 +1029,42 @@ function renderTileList() {
     .join("");
   list.innerHTML = items || '<div class="muted">No tiles yet. Create your first tile.</div>';
   list.querySelectorAll("[data-tile-id]").forEach((button) => {
+    const tileId = button.getAttribute("data-tile-id");
+    if (!tileId) {
+      return;
+    }
+
     button.addEventListener("click", () => {
-      const id = button.getAttribute("data-tile-id");
-      if (id) {
-        selectTile(id);
+      selectTile(tileId);
+    });
+
+    button.addEventListener("dragstart", (event) => {
+      draggedTileId = tileId;
+      event.dataTransfer?.setData("text/plain", tileId);
+    });
+
+    button.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      button.classList.add("drag-over");
+    });
+
+    button.addEventListener("dragleave", () => {
+      button.classList.remove("drag-over");
+    });
+
+    button.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      button.classList.remove("drag-over");
+      const sourceId = draggedTileId || event.dataTransfer?.getData("text/plain");
+      if (!sourceId || sourceId === tileId) {
+        return;
       }
+      await applyReorder(sourceId, tileId);
+    });
+
+    button.addEventListener("dragend", () => {
+      draggedTileId = null;
+      list.querySelectorAll(".tile-item").forEach((node) => node.classList.remove("drag-over"));
     });
   });
 
@@ -788,6 +1092,7 @@ function setForm(tile) {
   document.getElementById("tile-action").value = actionType;
   document.getElementById("tile-target").value = tile ? (tile.actionValue || "") : defaultTargetForAction(actionType);
   syncTargetUi();
+  renderIconPicker();
 }
 
 function defaultTargetForAction(actionType) {
@@ -826,6 +1131,7 @@ function selectTile(id) {
   setForm(tile);
   setMessage(tile ? "Editing " + tile.label + " (" + tile.id + ")" : "Tile not found.");
   renderTileList();
+  renderLayoutCanvas();
 }
 
 async function refreshDashboard() {
@@ -835,6 +1141,7 @@ async function refreshDashboard() {
     selectedTileId = null;
   }
   renderTileList();
+  renderLayoutCanvas();
 }
 
 async function refreshPreview() {
@@ -875,6 +1182,7 @@ async function createTile() {
   setForm(payload.tile);
   setMessage("Created tile: " + payload.tile.label);
   renderTileList();
+  renderLayoutCanvas();
   await refreshPreview();
 }
 
@@ -900,6 +1208,7 @@ async function updateSelectedTile() {
   selectedTileId = payload.tile.id;
   setMessage("Updated tile: " + payload.tile.label);
   renderTileList();
+  renderLayoutCanvas();
   await refreshPreview();
 }
 
@@ -946,6 +1255,8 @@ async function manualRefresh() {
 async function hydrate() {
   document.getElementById("conn").textContent = "${state.connection}";
   renderTileList();
+  renderLayoutCanvas();
+  renderIconPicker();
   renderHistory(BOOT_HISTORY);
   await refreshDashboard();
   await refreshPreview();
@@ -956,6 +1267,13 @@ async function hydrate() {
     setForm(null);
   }
   document.getElementById("tile-action").addEventListener("change", syncTargetUi);
+  document.getElementById("tile-icon").addEventListener("input", renderIconPicker);
+  window.addEventListener("mousemove", onResizeMove);
+  window.addEventListener("mouseup", () => {
+    onResizeEnd().catch((error) => {
+      setMessage("Resize failed: " + error.message);
+    });
+  });
   setInterval(() => {
     refreshHistory().catch(() => {});
   }, 2000);
