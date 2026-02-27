@@ -222,6 +222,73 @@ describe("live preview synchronization", () => {
     expect(desktopModel.tiles.map((tile) => tile.label)).toEqual(["Apps", "Browser"]);
   });
 
+  it("keeps parity deterministic when snapshot contains duplicate order values", () => {
+    const snapshot = {
+      version: 12,
+      updatedAt: "2026-02-27T12:30:00.000Z",
+      tiles: [
+        {
+          id: "tile-z",
+          label: "Website",
+          icon: "browser" as const,
+          order: 2,
+          createdAt: "2026-02-27T12:00:00.000Z",
+          updatedAt: "2026-02-27T12:00:00.000Z",
+          action: {
+            actionType: "open_website" as const,
+            payload: {
+              url: "https://example.com"
+            }
+          }
+        },
+        {
+          id: "tile-a",
+          label: "Music",
+          icon: "media" as const,
+          order: 2,
+          createdAt: "2026-02-27T12:00:00.000Z",
+          updatedAt: "2026-02-27T12:00:00.000Z",
+          action: {
+            actionType: "media_control" as const,
+            payload: {
+              command: "play_pause" as const
+            }
+          }
+        },
+        {
+          id: "tile-b",
+          label: "Apps",
+          icon: "apps" as const,
+          order: 0,
+          createdAt: "2026-02-27T12:00:00.000Z",
+          updatedAt: "2026-02-27T12:00:00.000Z",
+          action: {
+            actionType: "open_app" as const,
+            payload: {
+              appId: "notepad"
+            }
+          }
+        }
+      ]
+    };
+
+    const desktopModel = createDashboardLivePreviewModel(snapshot);
+    const mobileModel = createMobileDashboardModel(snapshot);
+
+    expect(desktopModel.tiles.map((tile) => tile.id)).toEqual(["tile-b", "tile-a", "tile-z"]);
+    expect(mobileModel.tiles.map((tile) => tile.id)).toEqual(["tile-b", "tile-a", "tile-z"]);
+    expect(desktopModel.tiles.map((tile) => tile.order)).toEqual([0, 1, 2]);
+    expect(mobileModel.tiles.map((tile) => tile.order)).toEqual([0, 1, 2]);
+    expect(desktopModel.tiles.map((tile) => tile.actionSummary)).toEqual([
+      "Open app: notepad",
+      "Media control: play_pause",
+      "Open website: https://example.com"
+    ]);
+    expect(desktopModel.tiles.map((tile) => tile.actionSummary)).toEqual(
+      mobileModel.tiles.map((tile) => tile.actionSummary)
+    );
+  });
+
   it("prevents duplicate callback accumulation across unsubscribe and resubscribe cycles", () => {
     const runtime = createRuntime();
     const client = new MobileConnectivityClient(runtime, "phone-1");
