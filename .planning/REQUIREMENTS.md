@@ -19,9 +19,9 @@
 
 ### Interaction Quality
 
-- [ ] **UX-01**: User receives clear interaction feedback for tile create/edit/reorder/delete/save actions in the desktop builder.
-- [ ] **UX-02**: User can complete common builder tasks without ambiguous UI states or unclear affordances.
-- [ ] **UX-03**: User sees concise success/failure messaging without noisy or duplicated feedback.
+- [x] **UX-01**: User receives clear interaction feedback for tile create/edit/reorder/delete/save actions in the desktop builder.
+- [x] **UX-02**: User can complete common builder tasks without ambiguous UI states or unclear affordances.
+- [x] **UX-03**: User sees concise success/failure messaging without noisy or duplicated feedback.
 
 ### Preview Fidelity
 
@@ -61,9 +61,9 @@
 | VIS-01 | Phase 4 | Pending |
 | VIS-02 | Phase 4 | Pending |
 | VIS-03 | Phase 4 | Pending |
-| UX-01 | Phase 5 | Pending |
-| UX-02 | Phase 5 | Pending |
-| UX-03 | Phase 5 | Pending |
+| UX-01 | Phase 5 | Complete |
+| UX-02 | Phase 5 | Complete |
+| UX-03 | Phase 5 | Complete |
 | PRV-01 | Phase 6 | Pending |
 | PRV-02 | Phase 6 | Pending |
 | PRV-03 | Phase 6 | Pending |

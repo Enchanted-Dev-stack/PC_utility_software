@@ -98,7 +98,12 @@ Plans:
   1. User gets immediate, clear feedback for tile create, edit, reorder, delete, and save actions.
   2. User can complete common builder tasks without entering unclear, conflicting, or visually ambiguous states.
   3. User sees concise success/failure messages without duplicate toasts, duplicate banners, or noisy repetition.
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md - Add deterministic builder feedback contracts and outcome messaging for all tile mutations.
+- [ ] 05-02-PLAN.md - Enforce unambiguous builder interaction states and affordances through runtime model guards.
+- [ ] 05-03-PLAN.md - Integrate feedback deduplication and regression coverage across builder and control-panel surfaces.
 
 ### Phase 6: Preview Fidelity and Persistence
 **Goal**: Users can trust that desktop edits and saved layout persist and appear identically in mobile preview.
