@@ -889,17 +889,19 @@ body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:linear-gradient
 .icon-picker{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-bottom:10px}
 .icon-choice{height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .icon-choice.active{border-color:var(--accent);background:#e0f2fe}
-.canvas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:72px;gap:10px;margin-top:8px}
-.canvas-tile{position:relative;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;display:flex;align-items:flex-end;padding:10px;cursor:grab;user-select:none}
+.canvas-shell{margin-top:10px;border:1px solid #1f2937;background:#0b1220;border-radius:26px;padding:14px;display:flex;justify-content:center}
+.canvas-phone{position:relative;width:360px;min-height:640px;border-radius:20px;overflow:hidden;border:1px solid #111827;background:#f6f8fc}
+.canvas-tile{position:absolute;overflow:hidden;display:flex;align-items:flex-end;cursor:grab;user-select:none;transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease}
 .canvas-tile.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(14,165,233,.18) inset}
 .canvas-tile.dragging{opacity:.45}
 .canvas-tile.drag-over{outline:2px dashed #0284c7;outline-offset:2px}
-.canvas-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:56px;opacity:.1;pointer-events:none}
+.canvas-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.1;pointer-events:none}
 .canvas-content{position:relative;z-index:2}
-.canvas-label{font-weight:700;font-size:14px}
-.canvas-meta{font-size:11px;color:var(--muted)}
+.canvas-label{font-weight:700;line-height:1.2}
+.canvas-meta{font-size:11px}
 .canvas-size{position:absolute;top:8px;left:8px;z-index:3;background:#e0f2fe;color:#0369a1;font-size:11px;border-radius:999px;padding:2px 8px}
 .resize-handle{position:absolute;right:8px;bottom:8px;width:14px;height:14px;border-radius:4px;border:1px solid #94a3b8;background:#f8fafc;cursor:nwse-resize;z-index:4}
+.canvas-theme{min-width:220px}
 label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
 input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
 input:focus,select:focus,button:focus{outline:3px solid rgba(14,165,233,.2);outline-offset:1px}
@@ -999,8 +1001,14 @@ th{color:var(--muted);font-weight:600}
 
     <section class="card" style="grid-column:1 / -1">
       <h2>Layout Canvas</h2>
-      <div class="muted">Drag tiles to reorder. Drag bottom-right handle to resize (cols x rows).</div>
-      <div id="layout-canvas" class="canvas" aria-label="layout canvas"></div>
+      <div class="muted">Phone-accurate preview. Drag to reorder, drag handle to resize, scroll wheel to nudge size (Shift = width), and double-click a tile to edit values.</div>
+      <div class="actions" style="margin-top:8px">
+        <label for="canvas-theme" style="margin:0">Preview Theme</label>
+        <select id="canvas-theme" class="canvas-theme"></select>
+      </div>
+      <div class="canvas-shell">
+        <div id="layout-canvas" class="canvas-phone" aria-label="layout canvas"></div>
+      </div>
     </section>
 
     <section class="card" style="grid-column:1 / -1">
@@ -1027,11 +1035,94 @@ const ACCESSIBILITY_VERIFICATION_ROUTE = "${ACCESSIBILITY_VERIFICATION_ROUTE}";
 const ICON_CHOICES = ${JSON.stringify(ICON_CHOICES)};
 const BOOT_DASHBOARD = ${bootDashboard};
 const BOOT_HISTORY = ${bootHistory};
+const BUILDER_THEME_KEY = "builder_canvas_theme";
+const PHONE_VIEWPORT_WIDTH = 360;
+const TILE_ROW_HEIGHT = 96;
+const TILE_THEMES = {
+  neo_brutal: {
+    name: "Neo Brutalist Grid V1",
+    background: "#FFF27D",
+    border: "#111827",
+    text: "#0F172A",
+    meta: "#334155",
+    iconTint: "#11182733",
+    radius: 4,
+    borderWidth: 3,
+    boxShadow: "4px 4px 0 #0F172A",
+    gridGap: 10,
+    screenPadding: 10,
+    screenBackground: "#F6F8FC",
+  },
+  premium_glow: {
+    name: "Premium Glow Grid V2",
+    background: "#000000",
+    border: "#1A1A1A",
+    text: "#FFFFFF",
+    meta: "#6B7280",
+    iconTint: "#00E5FF14",
+    radius: 10,
+    borderWidth: 1,
+    boxShadow: "0 0 10px #00E5FF22",
+    gridGap: 0,
+    screenPadding: 0,
+    screenBackground: "#000000",
+  },
+  amoled_control_center: {
+    name: "AMOLED Control Center",
+    background: "#000000",
+    border: "#1A1A1A",
+    text: "#E2E8F0",
+    meta: "#64748B",
+    iconTint: "#00E5FF14",
+    radius: 0,
+    borderWidth: 1,
+    boxShadow: "none",
+    gridGap: 10,
+    screenPadding: 10,
+    screenBackground: "#000000",
+  },
+  midnight: {
+    name: "Midnight",
+    background: "#0F172A",
+    border: "#334155",
+    text: "#E2E8F0",
+    meta: "#94A3B8",
+    iconTint: "#E2E8F01A",
+    radius: 14,
+    borderWidth: 1.6,
+    boxShadow: "0 8px 20px #0F172A33",
+    gridGap: 10,
+    screenPadding: 10,
+    screenBackground: "#0B1020",
+  },
+  divider_grid: {
+    name: "Divider Grid",
+    background: "#F8FAFC",
+    border: "#94A3B8",
+    text: "#0F172A",
+    meta: "#475569",
+    iconTint: "#0F172A0F",
+    radius: 0,
+    borderWidth: 0.9,
+    boxShadow: "none",
+    gridGap: 0,
+    screenPadding: 0,
+    screenBackground: "#F8FAFC",
+  },
+};
 
 let dashboard = BOOT_DASHBOARD;
 let selectedTileId = null;
 let draggedTileId = null;
 let activeResize = null;
+let activeCanvasThemeId = localStorage.getItem(BUILDER_THEME_KEY) || "neo_brutal";
+let lastCanvasMetrics = null;
+let lastPlacementsByTileId = new Map();
+let resizeNudgeInFlight = new Set();
+
+if (!TILE_THEMES[activeCanvasThemeId]) {
+  activeCanvasThemeId = "neo_brutal";
+}
 
 function escapeHtml(text) {
   return String(text)
@@ -1090,6 +1181,206 @@ function iconGlyph(rawValue) {
   return value || "⭐";
 }
 
+function activeCanvasTheme() {
+  return TILE_THEMES[activeCanvasThemeId] || TILE_THEMES.neo_brutal;
+}
+
+function renderCanvasThemeOptions() {
+  const select = document.getElementById("canvas-theme");
+  if (!select) {
+    return;
+  }
+
+  const options = Object.entries(TILE_THEMES)
+    .map(([id, theme]) => {
+      const selected = id === activeCanvasThemeId ? " selected" : "";
+      return '<option value="' + escapeHtml(id) + '"' + selected + '>' + escapeHtml(theme.name) + '</option>';
+    })
+    .join("");
+  select.innerHTML = options;
+}
+
+function buildPlacements(tiles, gridColumns = 4) {
+  const occupancy = [];
+  const placements = [];
+
+  function ensureRows(minRows) {
+    while (occupancy.length < minRows) {
+      occupancy.push(Array.from({ length: gridColumns }, () => false));
+    }
+  }
+
+  function canPlace(row, col, spanCols, spanRows) {
+    ensureRows(row + spanRows);
+    for (let r = row; r < row + spanRows; r += 1) {
+      for (let c = col; c < col + spanCols; c += 1) {
+        if (occupancy[r][c]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function occupy(row, col, spanCols, spanRows) {
+    ensureRows(row + spanRows);
+    for (let r = row; r < row + spanRows; r += 1) {
+      for (let c = col; c < col + spanCols; c += 1) {
+        occupancy[r][c] = true;
+      }
+    }
+  }
+
+  tiles.forEach((tile) => {
+    const spanCols = Math.min(normalizeTileSpan(tile.spanCols, 2), gridColumns);
+    const spanRows = normalizeTileSpan(tile.spanRows, 1);
+    let row = 0;
+    let placed = false;
+
+    while (!placed) {
+      ensureRows(row + spanRows);
+      for (let col = 0; col <= gridColumns - spanCols; col += 1) {
+        if (!canPlace(row, col, spanCols, spanRows)) {
+          continue;
+        }
+
+        occupy(row, col, spanCols, spanRows);
+        placements.push({
+          tile,
+          row,
+          col,
+          spanCols,
+          spanRows,
+        });
+        placed = true;
+        break;
+      }
+
+      if (!placed) {
+        row += 1;
+      }
+    }
+  });
+
+  return placements;
+}
+
+async function patchTile(tileId, body, successMessage) {
+  const resp = await fetch("/dashboard/tiles/" + tileId, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (resp.status >= 400) {
+    const fail = await resp.json();
+    throw new Error(fail.reason || String(resp.status));
+  }
+
+  const payload = await resp.json();
+  dashboard = payload.dashboard;
+  selectedTileId = payload.tile.id;
+  setForm(payload.tile);
+  if (successMessage) {
+    setMessage(successMessage);
+  }
+  renderTileList();
+  renderLayoutCanvas();
+  await refreshPreview();
+  return payload.tile;
+}
+
+async function nudgeTileSize(tileId, deltaCols, deltaRows) {
+  if (resizeNudgeInFlight.has(tileId)) {
+    return;
+  }
+
+  const tile = dashboard.tiles.find((entry) => entry.id === tileId);
+  if (!tile) {
+    return;
+  }
+
+  const nextCols = normalizeTileSpan(Number(tile.spanCols || 2) + deltaCols, tile.spanCols || 2);
+  const nextRows = normalizeTileSpan(Number(tile.spanRows || 1) + deltaRows, tile.spanRows || 1);
+  if (nextCols === tile.spanCols && nextRows === tile.spanRows) {
+    return;
+  }
+
+  resizeNudgeInFlight.add(tileId);
+  try {
+    await patchTile(tileId, { spanCols: nextCols, spanRows: nextRows }, "Resized tile to " + nextCols + "x" + nextRows + ".");
+  } finally {
+    resizeNudgeInFlight.delete(tileId);
+  }
+}
+
+async function quickEditTile(tileId) {
+  const tile = dashboard.tiles.find((entry) => entry.id === tileId);
+  if (!tile) {
+    return;
+  }
+
+  const nextLabelInput = prompt("Tile label", tile.label || "");
+  if (nextLabelInput === null) {
+    return;
+  }
+
+  const supportedActions = [
+    "open_url",
+    "open_app",
+    "media_play_pause",
+    "media_next",
+    "media_previous",
+    "volume_up",
+    "volume_down",
+    "volume_mute",
+    "system_lock",
+    "system_sleep",
+    "system_shutdown",
+    "system_restart",
+    "open_task_manager",
+  ];
+  const actionPrompt =
+    "Action type (" + supportedActions.join(", ") + ")";
+  const actionTypeInput = prompt(actionPrompt, tile.actionType || "open_url");
+  if (actionTypeInput === null) {
+    return;
+  }
+
+  const nextActionType = actionTypeInput.trim();
+  if (!supportedActions.includes(nextActionType)) {
+    alert("Unsupported action type.");
+    return;
+  }
+
+  let nextActionValue = String(tile.actionValue || "");
+  if (nextActionType === "open_url") {
+    const target = prompt("Target URL", nextActionValue || "https://example.com");
+    if (target === null) {
+      return;
+    }
+    nextActionValue = target.trim();
+  } else if (nextActionType === "open_app") {
+    const target = prompt("Application command", nextActionValue || "notepad.exe");
+    if (target === null) {
+      return;
+    }
+    nextActionValue = target.trim();
+  } else {
+    nextActionValue = "";
+  }
+
+  await patchTile(
+    tileId,
+    {
+      label: nextLabelInput.trim() || tile.label,
+      actionType: nextActionType,
+      actionValue: nextActionValue,
+    },
+    "Updated tile directly from canvas.",
+  );
+}
+
 async function applyReorder(sourceId, targetId) {
   const orderedIds = sortedTiles().map((tile) => tile.id);
   const sourceIndex = orderedIds.indexOf(sourceId);
@@ -1122,9 +1413,10 @@ function beginResize(tileId, handleElement, startEvent) {
     return;
   }
 
-  const canvas = document.getElementById("layout-canvas");
-  const canvasWidth = Math.max(canvas.clientWidth, 1);
-  const colWidth = (canvasWidth - (3 * 10)) / 4;
+  const placement = lastPlacementsByTileId.get(tileId);
+  if (!placement || !lastCanvasMetrics) {
+    return;
+  }
 
   activeResize = {
     tileId,
@@ -1134,14 +1426,16 @@ function beginResize(tileId, handleElement, startEvent) {
     startRows: normalizeTileSpan(tile.spanRows, 1),
     currentCols: normalizeTileSpan(tile.spanCols, 2),
     currentRows: normalizeTileSpan(tile.spanRows, 1),
-    colStep: Math.max(colWidth + 10, 40),
-    rowStep: 72 + 10,
+    colStep: Math.max(lastCanvasMetrics.cellWidth + lastCanvasMetrics.gap, 40),
+    rowStep: TILE_ROW_HEIGHT + lastCanvasMetrics.gap,
+    left: placement.left,
+    top: placement.top,
     handleElement,
   };
 }
 
 function onResizeMove(event) {
-  if (!activeResize) {
+  if (!activeResize || !lastCanvasMetrics) {
     return;
   }
 
@@ -1168,8 +1462,12 @@ function onResizeMove(event) {
     return;
   }
 
-  tileElement.style.gridColumn = "span " + nextCols;
-  tileElement.style.gridRow = "span " + nextRows;
+  const width =
+    (nextCols * lastCanvasMetrics.cellWidth) + ((nextCols - 1) * lastCanvasMetrics.gap);
+  const height =
+    (nextRows * TILE_ROW_HEIGHT) + ((nextRows - 1) * lastCanvasMetrics.gap);
+  tileElement.style.width = width + "px";
+  tileElement.style.height = height + "px";
   const badge = tileElement.querySelector(".canvas-size");
   if (badge) {
     badge.textContent = nextCols + "x" + nextRows;
@@ -1195,30 +1493,78 @@ async function onResizeEnd() {
     return;
   }
 
-  await fetch("/dashboard/tiles/" + tileId, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  setMessage("Resized tile.");
-  await refreshDashboard();
-  await refreshPreview();
+  try {
+    await patchTile(tileId, payload, "Resized tile.");
+  } catch (error) {
+    setMessage("Resize failed: " + error.message);
+    await refreshDashboard();
+  }
 }
 
 function renderLayoutCanvas() {
   const canvas = document.getElementById("layout-canvas");
   const tiles = sortedTiles();
-  canvas.innerHTML = tiles
-    .map((tile) => {
-      const cols = normalizeTileSpan(tile.spanCols, 2);
-      const rows = normalizeTileSpan(tile.spanRows, 1);
+  const theme = activeCanvasTheme();
+  const gridColumns = 4;
+  const gap = theme.gridGap;
+  const screenPadding = theme.screenPadding;
+  const contentWidth = Math.max(PHONE_VIEWPORT_WIDTH - (screenPadding * 2), 120);
+  const cellWidth = (contentWidth - ((gridColumns - 1) * gap)) / gridColumns;
+  const placements = buildPlacements(tiles, gridColumns);
+
+  let totalRows = 1;
+  placements.forEach((placement) => {
+    const endRow = placement.row + placement.spanRows;
+    if (endRow > totalRows) {
+      totalRows = endRow;
+    }
+  });
+
+  const tileRegionHeight = (totalRows * TILE_ROW_HEIGHT) + ((totalRows - 1) * gap);
+  const canvasHeight = Math.max(640, tileRegionHeight + (screenPadding * 2));
+
+  lastCanvasMetrics = {
+    gap,
+    screenPadding,
+    cellWidth,
+  };
+
+  lastPlacementsByTileId = new Map();
+  canvas.style.height = canvasHeight + "px";
+  canvas.style.background = theme.screenBackground;
+  canvas.style.fontFamily = '"Space Grotesk", "Segoe UI", Arial, sans-serif';
+
+  canvas.innerHTML = placements
+    .map((placement) => {
+      const tile = placement.tile;
+      const cols = placement.spanCols;
+      const rows = placement.spanRows;
       const active = tile.id === selectedTileId ? " active" : "";
+      const width = (cols * cellWidth) + ((cols - 1) * gap);
+      const height = (rows * TILE_ROW_HEIGHT) + ((rows - 1) * gap);
+      const left = screenPadding + (placement.col * (cellWidth + gap));
+      const top = screenPadding + (placement.row * (TILE_ROW_HEIGHT + gap));
+      const compactTile = height < 120;
+      const iconSize = Math.max(32, Math.round(height * 0.52));
+
+      lastPlacementsByTileId.set(tile.id, {
+        left,
+        top,
+        width,
+        height,
+        col: placement.col,
+        row: placement.row,
+      });
+
       return (
-        '<div class="canvas-tile' + active + '" draggable="true" data-tile-id="' + escapeHtml(tile.id) + '" style="grid-column: span ' + cols + '; grid-row: span ' + rows + ';">' +
+        '<div class="canvas-tile' + active + '" draggable="true" data-tile-id="' + escapeHtml(tile.id) + '" style="left:' + left + 'px;top:' + top + 'px;width:' + width + 'px;height:' + height + 'px;background:' + theme.background + ';border:' + theme.borderWidth + 'px solid ' + theme.border + ';border-radius:' + theme.radius + 'px;box-shadow:' + theme.boxShadow + ';">' +
           '<div class="canvas-size">' + cols + 'x' + rows + '</div>' +
-          '<div class="canvas-icon">' + escapeHtml(iconGlyph(tile.icon)) + '</div>' +
-          '<div class="canvas-content"><div class="canvas-label">' + escapeHtml(tile.label) + '</div><div class="canvas-meta">' + escapeHtml(tile.actionType) + '</div></div>' +
-          '<div class="resize-handle" data-resize-handle="' + escapeHtml(tile.id) + '"></div>' +
+          '<div class="canvas-icon" style="font-size:' + iconSize + 'px;color:' + theme.iconTint + ';">' + escapeHtml(iconGlyph(tile.icon)) + '</div>' +
+          '<div class="canvas-content" style="padding:' + (compactTile ? 8 : 12) + 'px;">' +
+            '<div class="canvas-label" style="font-size:' + (compactTile ? 14 : 16) + 'px;color:' + theme.text + ';max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:' + (compactTile ? 'nowrap' : 'normal') + ';">' + escapeHtml(tile.label) + '</div>' +
+            '<div class="canvas-meta" style="color:' + theme.meta + ';display:' + (compactTile ? 'none' : 'block') + ';">' + escapeHtml(tile.actionType) + '</div>' +
+          '</div>' +
+          '<div class="resize-handle" title="Drag to resize" data-resize-handle="' + escapeHtml(tile.id) + '"></div>' +
         '</div>'
       );
     })
@@ -1232,6 +1578,23 @@ function renderLayoutCanvas() {
 
     tileElement.addEventListener("click", () => {
       selectTile(tileId);
+    });
+
+    tileElement.addEventListener("dblclick", () => {
+      quickEditTile(tileId).catch((error) => {
+        setMessage("Quick edit failed: " + error.message);
+      });
+    });
+
+    tileElement.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? 1 : -1;
+      const promise = event.shiftKey
+        ? nudgeTileSize(tileId, delta, 0)
+        : nudgeTileSize(tileId, 0, delta);
+      promise.catch((error) => {
+        setMessage("Resize failed: " + error.message);
+      });
     });
 
     tileElement.addEventListener("dragstart", (event) => {
@@ -1517,6 +1880,7 @@ async function manualRefresh() {
 
 async function hydrate() {
   document.getElementById("conn").textContent = "${state.connection}";
+  renderCanvasThemeOptions();
   renderTileList();
   renderLayoutCanvas();
   renderIconPicker();
@@ -1529,6 +1893,16 @@ async function hydrate() {
   } else {
     setForm(null);
   }
+  document.getElementById("canvas-theme").addEventListener("change", (event) => {
+    const next = event.target.value;
+    if (!TILE_THEMES[next]) {
+      return;
+    }
+    activeCanvasThemeId = next;
+    localStorage.setItem(BUILDER_THEME_KEY, next);
+    setMessage("Preview theme: " + TILE_THEMES[next].name);
+    renderLayoutCanvas();
+  });
   document.getElementById("tile-action").addEventListener("change", syncTargetUi);
   document.getElementById("tile-icon").addEventListener("input", renderIconPicker);
   window.addEventListener("mousemove", onResizeMove);
