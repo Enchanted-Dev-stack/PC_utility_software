@@ -601,6 +601,9 @@ class _TileScreenState extends State<TileScreen> {
   StreamSubscription<AccelerometerEvent>? _shakeSubscription;
   DateTime? _lastShakeAt;
   final Map<String, MemoryImage> _dataImageCache = <String, MemoryImage>{};
+  Timer? _autoSyncTimer;
+  bool _autoSyncInFlight = false;
+  String _lastLayoutVersion = '';
 
   Uri _url(String path) => Uri.parse('${widget.baseUrl}$path');
 
@@ -652,6 +655,9 @@ class _TileScreenState extends State<TileScreen> {
 
   Future<void> _refreshStatus() async {
     final response = await http.get(_url('/status'));
+    if (response.statusCode >= 400) {
+      throw Exception('status_failed:${response.statusCode}');
+    }
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     setState(() {
       paired = (body['paired'] as bool?) ?? false;
@@ -660,12 +666,40 @@ class _TileScreenState extends State<TileScreen> {
 
   Future<void> _refreshPreview() async {
     final response = await http.get(_url('/preview'));
+    if (response.statusCode >= 400) {
+      throw Exception('preview_failed:${response.statusCode}');
+    }
     final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final layoutVersion = '${body['layoutVersion'] ?? ''}';
+    if (layoutVersion.isNotEmpty && layoutVersion == _lastLayoutVersion) {
+      return;
+    }
+
     final tiles = (body['tiles'] as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     setState(() {
+      _lastLayoutVersion = layoutVersion;
       previewTiles = tiles;
+    });
+  }
+
+  void _startAutoSync() {
+    _autoSyncTimer?.cancel();
+    _autoSyncTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (_autoSyncInFlight || !mounted) {
+        return;
+      }
+
+      _autoSyncInFlight = true;
+      try {
+        await _refreshStatus();
+        await _refreshPreview();
+      } catch (_) {
+        // Ignore background sync failures; user-triggered actions still show errors.
+      } finally {
+        _autoSyncInFlight = false;
+      }
     });
   }
 
@@ -944,11 +978,13 @@ class _TileScreenState extends State<TileScreen> {
       await _refreshPreview();
     });
     _startShakeDetection();
+    _startAutoSync();
   }
 
   @override
   void dispose() {
     _shakeSubscription?.cancel();
+    _autoSyncTimer?.cancel();
     super.dispose();
   }
 

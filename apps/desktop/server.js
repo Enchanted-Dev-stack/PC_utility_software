@@ -1,12 +1,16 @@
 const http = require("node:http");
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const os = require("node:os");
+const path = require("node:path");
 
 const PORT = Number(process.env.PORT || 8787);
 const ACCESSIBILITY_VERIFICATION_ROUTE = "/verify/builder-accessibility";
 const MIN_TILE_SPAN = 1;
 const MAX_TILE_SPAN = 4;
 const ACTION_DEDUP_WINDOW_MS = 300;
+const DASHBOARD_STORAGE_DIR = path.join(os.homedir(), ".pc-remote-control");
+const DASHBOARD_STORAGE_FILE = path.join(DASHBOARD_STORAGE_DIR, "dashboard-state.json");
 const ICON_CHOICES = [
   "⭐",
   "🔥",
@@ -46,6 +50,7 @@ const state = {
   dashboard: {
     isDirty: false,
     lastSavedAt: null,
+    revision: 1,
     tiles: [
       {
         id: "tile-1",
@@ -161,14 +166,78 @@ function normalizeSpan(value, fallback) {
   return Math.max(MIN_TILE_SPAN, Math.min(MAX_TILE_SPAN, Math.round(numeric)));
 }
 
+function loadPersistedDashboardState() {
+  try {
+    if (!fs.existsSync(DASHBOARD_STORAGE_FILE)) {
+      return;
+    }
+
+    const raw = fs.readFileSync(DASHBOARD_STORAGE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    const persisted = parsed && typeof parsed === "object" ? parsed.dashboard : null;
+    if (!persisted || typeof persisted !== "object") {
+      return;
+    }
+
+    const tiles = Array.isArray(persisted.tiles)
+      ? persisted.tiles.map((tile, index) => ({
+          id: String(tile.id || `tile-${Date.now()}-${index}`),
+          order: Number.isFinite(Number(tile.order)) ? Number(tile.order) : index,
+          label: String(tile.label || `Tile ${index + 1}`),
+          icon: String(tile.icon || "⭐"),
+          imageUrl: String(tile.imageUrl || "").trim(),
+          actionType: String(tile.actionType || "open_url"),
+          actionValue: String(
+            tile.actionValue === undefined
+              ? defaultActionValue(String(tile.actionType || "open_url"))
+              : tile.actionValue,
+          ),
+          spanCols: normalizeSpan(tile.spanCols, 2),
+          spanRows: normalizeSpan(tile.spanRows, 1),
+        }))
+      : [];
+
+    state.dashboard = {
+      isDirty: Boolean(persisted.isDirty),
+      lastSavedAt: persisted.lastSavedAt ? String(persisted.lastSavedAt) : null,
+      revision: Number.isFinite(Number(persisted.revision))
+        ? Math.max(1, Number(persisted.revision))
+        : 1,
+      tiles,
+    };
+    normalizeTiles();
+    logEvent("storage", `Loaded persisted dashboard (${state.dashboard.tiles.length} tile(s))`);
+  } catch (error) {
+    logEvent("storage", `Failed to load dashboard state: ${String(error.message || error)}`);
+  }
+}
+
+function persistDashboardState() {
+  try {
+    normalizeTiles();
+    fs.mkdirSync(DASHBOARD_STORAGE_DIR, { recursive: true });
+    const payload = {
+      schemaVersion: 1,
+      savedAt: new Date().toISOString(),
+      dashboard: state.dashboard,
+    };
+    fs.writeFileSync(DASHBOARD_STORAGE_FILE, JSON.stringify(payload, null, 2), "utf8");
+  } catch (error) {
+    logEvent("storage", `Failed to persist dashboard state: ${String(error.message || error)}`);
+  }
+}
+
 function dashboardSnapshot() {
   normalizeTiles();
   return {
     isDirty: state.dashboard.isDirty,
     lastSavedAt: state.dashboard.lastSavedAt,
+    revision: state.dashboard.revision,
     tiles: state.dashboard.tiles,
   };
 }
+
+loadPersistedDashboardState();
 
 function shouldDedupAction(deviceId, actionType) {
   const key = `${deviceId}:${actionType}`;
@@ -634,9 +703,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/preview") {
+      const snapshot = dashboardSnapshot();
       sendJson(res, 200, {
-        layoutVersion: state.dashboard.lastSavedAt || "unsaved",
-        tiles: dashboardSnapshot().tiles,
+        layoutVersion: `${state.dashboard.lastSavedAt || "unsaved"}:${snapshot.revision || 0}`,
+        tiles: snapshot.tiles,
       });
       return;
     }
@@ -658,6 +728,8 @@ const server = http.createServer(async (req, res) => {
       };
       state.dashboard.tiles.push(tile);
       state.dashboard.isDirty = true;
+      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
+      persistDashboardState();
       logEvent("dashboard", `Tile created: ${tile.label}`);
       sendJson(res, 200, { ok: true, tile, dashboard: dashboardSnapshot() });
       return;
@@ -689,6 +761,8 @@ const server = http.createServer(async (req, res) => {
         tile.spanRows || 1,
       );
       state.dashboard.isDirty = true;
+      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
+      persistDashboardState();
       logEvent("dashboard", `Tile edited: ${tile.label}`);
       sendJson(res, 200, { ok: true, tile, dashboard: dashboardSnapshot() });
       return;
@@ -703,7 +777,9 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       state.dashboard.isDirty = true;
+      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
       normalizeTiles();
+      persistDashboardState();
       logEvent("dashboard", `Tile deleted: ${id}`);
       sendJson(res, 200, { ok: true, dashboard: dashboardSnapshot() });
       return;
@@ -732,6 +808,8 @@ const server = http.createServer(async (req, res) => {
       }
       state.dashboard.tiles = nextTiles.map((tile, index) => ({ ...tile, order: index }));
       state.dashboard.isDirty = true;
+      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
+      persistDashboardState();
       logEvent("dashboard", "Tiles reordered");
       sendJson(res, 200, { ok: true, dashboard: dashboardSnapshot() });
       return;
@@ -740,6 +818,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/dashboard/save") {
       state.dashboard.isDirty = false;
       state.dashboard.lastSavedAt = new Date().toISOString();
+      state.dashboard.revision = (state.dashboard.revision || 0) + 1;
+      persistDashboardState();
       logEvent("dashboard", "Layout saved");
       sendJson(res, 200, { ok: true, dashboard: dashboardSnapshot() });
       return;
