@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const String defaultApiBaseUrl = String.fromEnvironment(
@@ -408,11 +411,61 @@ class TileScreen extends StatefulWidget {
 }
 
 class _TileScreenState extends State<TileScreen> {
+  static const String _themePrefKey = 'tile_theme_preset';
+
   bool paired = false;
-  String message = 'Open a tile to execute action.';
   List<Map<String, dynamic>> previewTiles = const [];
+  String themeId = 'neo_brutal';
+  StreamSubscription<AccelerometerEvent>? _shakeSubscription;
+  DateTime? _lastShakeAt;
 
   Uri _url(String path) => Uri.parse('${widget.baseUrl}$path');
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_themePrefKey);
+    if (saved == null || _themes.every((theme) => theme.id != saved)) {
+      return;
+    }
+    setState(() {
+      themeId = saved;
+    });
+  }
+
+  Future<void> _setTheme(String nextThemeId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themePrefKey, nextThemeId);
+    setState(() {
+      themeId = nextThemeId;
+    });
+    _notify('Theme: ${_themeById(nextThemeId).name}');
+  }
+
+  void _startShakeDetection() {
+    _shakeSubscription = accelerometerEventStream().listen((event) {
+      final gForce = sqrt((event.x * event.x) + (event.y * event.y) + (event.z * event.z)) /
+          9.80665;
+      if (gForce < 2.65) {
+        return;
+      }
+
+      final now = DateTime.now();
+      if (_lastShakeAt != null && now.difference(_lastShakeAt!) < const Duration(seconds: 2)) {
+        return;
+      }
+      _lastShakeAt = now;
+      _openQuickControls();
+    });
+  }
+
+  void _notify(String value) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(value)));
+  }
 
   Future<void> _refreshStatus() async {
     final response = await http.get(_url('/status'));
@@ -430,7 +483,6 @@ class _TileScreenState extends State<TileScreen> {
         .toList();
     setState(() {
       previewTiles = tiles;
-      message = 'Preview synced: ${tiles.length} tile(s)';
     });
   }
 
@@ -450,20 +502,18 @@ class _TileScreenState extends State<TileScreen> {
     );
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode >= 400) {
-      setState(() {
-        message = 'Action failed: ${body['reason'] ?? response.body}';
-      });
+      _notify('Action failed: ${body['reason'] ?? response.body}');
       return;
     }
 
     final lifecycle = (body['lifecycle'] as List<dynamic>? ?? []).join(' -> ');
     final resolved = body['resolved'] as Map<String, dynamic>?;
     final target = resolved != null ? (resolved['actionValue'] ?? '') : '';
-    setState(() {
-      message = target.toString().isNotEmpty
+    _notify(
+      target.toString().isNotEmpty
           ? 'Action $actionType ($target): $lifecycle'
-          : 'Action $actionType: $lifecycle';
-    });
+          : 'Action $actionType: $lifecycle',
+    );
     await _refreshStatus();
   }
 
@@ -471,10 +521,89 @@ class _TileScreenState extends State<TileScreen> {
     try {
       await action();
     } catch (e) {
-      setState(() {
-        message = 'Request failed: $e';
-      });
+      _notify('Request failed: $e');
     }
+  }
+
+  Future<void> _openQuickControls() async {
+    if (!mounted) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final activeTheme = _themeById(themeId);
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Controls',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Paired: ${paired ? 'yes' : 'no'} | Tiles: ${previewTiles.length}',
+                    style: const TextStyle(color: Color(0xFF475569)),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: () => _run(_refreshPreview),
+                        icon: const Icon(Icons.sync),
+                        label: const Text('Sync Tiles'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _run(_refreshStatus),
+                        icon: const Icon(Icons.wifi_tethering),
+                        label: const Text('Refresh Status'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop();
+                          Navigator.of(context).maybePop();
+                        },
+                        icon: const Icon(Icons.home),
+                        label: const Text('Back to Home'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Tile Theme (${activeTheme.name})',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _themes.map((theme) {
+                      return ChoiceChip(
+                        label: Text(theme.name),
+                        selected: theme.id == themeId,
+                        onSelected: (_) async {
+                          await _setTheme(theme.id);
+                          setSheetState(() {});
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   int _clampSpan(dynamic value, {required int fallback}) {
@@ -542,7 +671,9 @@ class _TileScreenState extends State<TileScreen> {
     }
 
     for (final tile in tiles) {
-      final spanCols = _clampSpan(tile['spanCols'], fallback: 2).clamp(1, gridColumns);
+      final spanCols = _clampSpan(tile['spanCols'], fallback: 2) > gridColumns
+          ? gridColumns
+          : _clampSpan(tile['spanCols'], fallback: 2);
       final spanRows = _clampSpan(tile['spanRows'], fallback: 1);
       var row = 0;
       var placed = false;
@@ -583,226 +714,275 @@ class _TileScreenState extends State<TileScreen> {
     paired = widget.initiallyPaired;
     previewTiles = widget.initialTiles;
     _run(() async {
+      await _loadTheme();
       await _refreshStatus();
       await _refreshPreview();
     });
+    _startShakeDetection();
+  }
+
+  @override
+  void dispose() {
+    _shakeSubscription?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeTheme = _themeById(themeId);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Control Tiles'),
-        actions: [
-          IconButton(
-            onPressed: () => _run(_refreshPreview),
-            icon: const Icon(Icons.sync),
-            tooltip: 'Sync tiles',
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await _run(_refreshStatus);
-          await _run(_refreshPreview);
-        },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Icon(
-                      paired ? Icons.verified_user : Icons.warning_amber_rounded,
-                      color: paired ? const Color(0xFF15803D) : const Color(0xFFB45309),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        paired
-                            ? 'Paired with desktop. Tap a tile to run action.'
-                            : 'Not paired. Pair from home screen before using tiles.',
+      body: GestureDetector(
+        onLongPress: _openQuickControls,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await _run(_refreshStatus);
+            await _run(_refreshPreview);
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(10),
+            children: [
+              if (previewTiles.isEmpty)
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.72,
+                  child: Center(
+                    child: Text(
+                      paired
+                          ? 'No tiles available yet'
+                          : 'Pair from home screen first',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF334155),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    message,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _run(_refreshPreview),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Sync'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (previewTiles.isEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text('No tiles yet', style: TextStyle(fontWeight: FontWeight.w700)),
-                      SizedBox(height: 6),
-                      Text('Create tiles from desktop builder, then return and tap Sync.'),
-                    ],
-                  ),
-                ),
-              )
-            else
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  const gridColumns = 4;
-                  const gap = 10.0;
-                  const rowHeight = 96.0;
-                  final placements = _buildPlacements(previewTiles, gridColumns: gridColumns);
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    const gridColumns = 4;
+                    const gap = 10.0;
+                    const rowHeight = 96.0;
+                    final placements = _buildPlacements(previewTiles, gridColumns: gridColumns);
 
-                  var totalRows = 1;
-                  for (final placement in placements) {
-                    final endRow = placement.row + placement.spanRows;
-                    if (endRow > totalRows) {
-                      totalRows = endRow;
+                    var totalRows = 1;
+                    for (final placement in placements) {
+                      final endRow = placement.row + placement.spanRows;
+                      if (endRow > totalRows) {
+                        totalRows = endRow;
+                      }
                     }
-                  }
 
-                  final cellWidth =
-                      (constraints.maxWidth - ((gridColumns - 1) * gap)) / gridColumns;
-                  final totalHeight = (totalRows * rowHeight) + ((totalRows - 1) * gap);
+                    final cellWidth =
+                        (constraints.maxWidth - ((gridColumns - 1) * gap)) / gridColumns;
+                    final totalHeight = (totalRows * rowHeight) + ((totalRows - 1) * gap);
 
-                  return SizedBox(
-                    height: totalHeight,
-                    child: Stack(
-                      children: placements.map((placement) {
-                        final tile = placement.tile;
-                        final label = '${tile['label'] ?? 'Tile'}';
-                        final actionType = '${tile['actionType'] ?? 'open_url'}';
-                        final actionValue = '${tile['actionValue'] ?? ''}';
-                        final tileId = '${tile['id'] ?? ''}';
-                        final iconGlyph = _iconGlyph(tile);
-                        final width =
-                            (placement.spanCols * cellWidth) + ((placement.spanCols - 1) * gap);
-                        final height =
-                            (placement.spanRows * rowHeight) + ((placement.spanRows - 1) * gap);
-                        final left = placement.col * (cellWidth + gap);
-                        final top = placement.row * (rowHeight + gap);
-                        final compactTile = height < 120;
+                    return SizedBox(
+                      height: totalHeight,
+                      child: Stack(
+                        children: placements.map((placement) {
+                          final tile = placement.tile;
+                          final label = '${tile['label'] ?? 'Tile'}';
+                          final actionType = '${tile['actionType'] ?? 'open_url'}';
+                          final actionValue = '${tile['actionValue'] ?? ''}';
+                          final tileId = '${tile['id'] ?? ''}';
+                          final iconGlyph = _iconGlyph(tile);
+                          final width =
+                              (placement.spanCols * cellWidth) + ((placement.spanCols - 1) * gap);
+                          final height =
+                              (placement.spanRows * rowHeight) + ((placement.spanRows - 1) * gap);
+                          final left = placement.col * (cellWidth + gap);
+                          final top = placement.row * (rowHeight + gap);
+                          final compactTile = height < 120;
 
-                        return Positioned(
-                          left: left,
-                          top: top,
-                          width: width,
-                          height: height,
-                          child: Card(
-                            elevation: 1,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: paired
-                                  ? () => _run(
-                                        () => _sendAction(
-                                          actionType,
-                                          tileId: tileId,
-                                          actionValue: actionValue,
-                                        ),
-                                      )
-                                  : null,
-                              child: Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: Center(
-                                      child: Text(
-                                        iconGlyph,
-                                        style: TextStyle(
-                                          fontSize: height * 0.52,
-                                          color: const Color(0xFF1E293B).withValues(alpha: 0.09),
-                                          fontWeight: FontWeight.w700,
+                          return Positioned(
+                            left: left,
+                            top: top,
+                            width: width,
+                            height: height,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(activeTheme.radius),
+                                onTap: paired
+                                    ? () => _run(
+                                          () => _sendAction(
+                                            actionType,
+                                            tileId: tileId,
+                                            actionValue: actionValue,
+                                          ),
+                                        )
+                                    : null,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: activeTheme.background,
+                                    borderRadius: BorderRadius.circular(activeTheme.radius),
+                                    border: Border.all(
+                                      color: activeTheme.border,
+                                      width: activeTheme.borderWidth,
+                                    ),
+                                    boxShadow: activeTheme.shadows,
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      Positioned.fill(
+                                        child: Center(
+                                          child: Text(
+                                            iconGlyph,
+                                            style: TextStyle(
+                                              fontSize: height * 0.52,
+                                              color: activeTheme.iconTint,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: EdgeInsets.all(compactTile ? 8 : 12),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '${placement.spanCols}x${placement.spanRows}',
-                                          style: TextStyle(
-                                            color: const Color(0xFF64748B),
-                                            fontSize: compactTile ? 10 : 11,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Text(
-                                          label,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: compactTile ? 14 : 16,
-                                          ),
-                                          maxLines: compactTile ? 1 : 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        if (!compactTile) const SizedBox(height: 4),
-                                        if (!compactTile)
-                                          Text(
-                                            actionType,
-                                            style: const TextStyle(
-                                              color: Color(0xFF475569),
-                                              fontSize: 12,
+                                      Padding(
+                                        padding: EdgeInsets.all(compactTile ? 8 : 12),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${placement.spanCols}x${placement.spanRows}',
+                                              style: TextStyle(
+                                                color: activeTheme.meta,
+                                                fontSize: compactTile ? 10 : 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                             ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        if (!compactTile && actionValue.isNotEmpty)
-                                          Text(
-                                            actionValue,
-                                            style: const TextStyle(
-                                              color: Color(0xFF64748B),
-                                              fontSize: 11,
+                                            const Spacer(),
+                                            Text(
+                                              label,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: compactTile ? 14 : 16,
+                                                color: activeTheme.text,
+                                              ),
+                                              maxLines: compactTile ? 1 : 2,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                      ],
-                                    ),
+                                            if (!compactTile) const SizedBox(height: 4),
+                                            if (!compactTile)
+                                              Text(
+                                                actionType,
+                                                style: TextStyle(
+                                                  color: activeTheme.meta,
+                                                  fontSize: 12,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  );
-                },
-              ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: paired ? () => _run(() => _sendAction('media_play_pause')) : null,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Quick Action: Media Play/Pause'),
-            ),
-          ],
+                          );
+                        }).toList(),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _TileVisualTheme {
+  const _TileVisualTheme({
+    required this.id,
+    required this.name,
+    required this.background,
+    required this.border,
+    required this.text,
+    required this.meta,
+    required this.iconTint,
+    required this.radius,
+    required this.borderWidth,
+    required this.shadows,
+  });
+
+  final String id;
+  final String name;
+  final Color background;
+  final Color border;
+  final Color text;
+  final Color meta;
+  final Color iconTint;
+  final double radius;
+  final double borderWidth;
+  final List<BoxShadow> shadows;
+}
+
+const List<_TileVisualTheme> _themes = [
+  _TileVisualTheme(
+    id: 'neo_brutal',
+    name: 'Neo Brutalism',
+    background: Color(0xFFFFF27D),
+    border: Color(0xFF111827),
+    text: Color(0xFF0F172A),
+    meta: Color(0xFF334155),
+    iconTint: Color(0x33111827),
+    radius: 4,
+    borderWidth: 3,
+    shadows: [
+      BoxShadow(
+        color: Color(0xFF0F172A),
+        offset: Offset(4, 4),
+        blurRadius: 0,
+      ),
+    ],
+  ),
+  _TileVisualTheme(
+    id: 'glass',
+    name: 'Glass',
+    background: Color(0xE6FFFFFF),
+    border: Color(0xA0FFFFFF),
+    text: Color(0xFF0F172A),
+    meta: Color(0xFF334155),
+    iconTint: Color(0x1A0F172A),
+    radius: 18,
+    borderWidth: 1.5,
+    shadows: [
+      BoxShadow(
+        color: Color(0x1A0F172A),
+        offset: Offset(0, 10),
+        blurRadius: 22,
+      ),
+    ],
+  ),
+  _TileVisualTheme(
+    id: 'midnight',
+    name: 'Midnight',
+    background: Color(0xFF0F172A),
+    border: Color(0xFF334155),
+    text: Color(0xFFE2E8F0),
+    meta: Color(0xFF94A3B8),
+    iconTint: Color(0x1AE2E8F0),
+    radius: 14,
+    borderWidth: 1.6,
+    shadows: [
+      BoxShadow(
+        color: Color(0x330F172A),
+        offset: Offset(0, 8),
+        blurRadius: 20,
+      ),
+    ],
+  ),
+];
+
+_TileVisualTheme _themeById(String id) {
+  return _themes.firstWhere(
+    (theme) => theme.id == id,
+    orElse: () => _themes.first,
+  );
 }
 
 class _PlacedTile {
