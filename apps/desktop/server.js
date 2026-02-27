@@ -146,6 +146,7 @@ function normalizeTiles() {
       ...tile,
       order: index,
       icon: String(tile.icon || "⬜"),
+      imageUrl: String(tile.imageUrl || ""),
       spanCols: normalizeSpan(tile.spanCols, 2),
       spanRows: normalizeSpan(tile.spanRows, 1),
     }));
@@ -649,6 +650,7 @@ const server = http.createServer(async (req, res) => {
         order: state.dashboard.tiles.length,
         label: String(body.label || `Tile ${state.dashboard.tiles.length + 1}`),
         icon: String(body.icon || "⭐"),
+        imageUrl: String(body.imageUrl || "").trim(),
         actionType,
         actionValue: String(body.actionValue || defaultActionValue(actionType)),
         spanCols: normalizeSpan(body.spanCols, 2),
@@ -671,6 +673,9 @@ const server = http.createServer(async (req, res) => {
       }
       tile.label = String(body.label || tile.label);
       tile.icon = String(body.icon || tile.icon);
+      tile.imageUrl = String(
+        body.imageUrl === undefined ? tile.imageUrl || "" : body.imageUrl,
+      ).trim();
       tile.actionType = String(body.actionType || tile.actionType);
       tile.actionValue = String(
         body.actionValue === undefined ? tile.actionValue : body.actionValue,
@@ -870,58 +875,73 @@ const server = http.createServer(async (req, res) => {
 body{margin:0;font-family:"JetBrains Mono","Cascadia Mono","Fira Code",Consolas,monospace;color:var(--text);background:radial-gradient(1200px 560px at 20% -10%,rgba(56,214,255,.18),transparent 60%),radial-gradient(900px 420px at 95% 0,rgba(0,255,136,.14),transparent 52%),linear-gradient(180deg,#02090d,#01060a)}
 body::before{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg,rgba(255,255,255,.03) 0,rgba(255,255,255,.03) 1px,transparent 2px,transparent 4px);opacity:.16;z-index:0}
 .shell{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:24px}
-.top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;margin-bottom:20px;border:1px solid var(--line);background:linear-gradient(145deg,#06161f,#071017);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+.top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;margin-bottom:20px;border:1px solid var(--line);background:linear-gradient(145deg,#06161f,#071017);border-radius:0;padding:16px;box-shadow:var(--shadow)}
 .title h1{font-size:30px;line-height:1.05;margin:0 0 8px;color:var(--accent);text-shadow:0 0 12px rgba(0,255,136,.35)}
 .title p{margin:0;color:var(--muted);max-width:720px}
-.badge{display:inline-block;background:rgba(0,255,136,.09);color:var(--accent);padding:4px 10px;border-radius:999px;border:1px solid rgba(0,255,136,.34);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.badge{display:inline-block;background:rgba(0,255,136,.09);color:var(--accent);padding:4px 10px;border-radius:0;border:1px solid rgba(0,255,136,.34);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .status{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
-.pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.pill{background:var(--panel);border:1px solid var(--line);border-radius:0;padding:6px 12px;font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
 .pill b{color:var(--text)}
 .grid{display:grid;grid-template-columns:1.1fr 1.3fr;gap:16px}
-.card{background:linear-gradient(155deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px}
+.card{background:linear-gradient(155deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:0;box-shadow:var(--shadow);padding:16px}
 .card h2{margin:0 0 14px;font-size:17px;color:#b7f8ff;letter-spacing:.07em;text-transform:uppercase}
 .muted{color:var(--muted);font-size:12px;line-height:1.45}
+.legacy-panel{display:none!important}
 .list{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow:auto}
-.tile-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-radius:10px;background:#041018;color:var(--text);padding:10px 12px;cursor:pointer}
+.tile-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-radius:0;background:#041018;color:var(--text);padding:10px 12px;cursor:pointer}
 .tile-item:hover{border-color:rgba(0,255,136,.6);background:#072128}
 .tile-item.active{border-color:var(--accent);background:#08261f;box-shadow:0 0 0 1px rgba(0,255,136,.28) inset}
 .tile-item.drag-over{border-color:var(--accent-2);background:#082333}
 .tile-main{font-weight:700}
 .tile-sub{font-size:11px;color:var(--muted)}
 .icon-picker{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-bottom:10px}
-.icon-choice{height:36px;border:1px solid var(--line);border-radius:8px;background:#06111a;color:var(--text);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-choice{height:36px;border:1px solid var(--line);border-radius:0;background:#06111a;color:var(--text);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .icon-choice.active{border-color:var(--accent);background:#0a2320;box-shadow:0 0 0 1px rgba(0,255,136,.25) inset}
-.canvas-shell{margin-top:10px;border:1px solid #0f3342;background:linear-gradient(180deg,#050d15,#09161f);border-radius:26px;padding:14px;display:flex;justify-content:center;box-shadow:inset 0 0 0 1px rgba(56,214,255,.16)}
-.canvas-phone{position:relative;width:360px;min-height:640px;border-radius:20px;overflow:hidden;border:1px solid #123847;background:#051019;box-shadow:0 0 0 1px rgba(56,214,255,.2),0 0 28px rgba(0,0,0,.55)}
+.canvas-stage{display:grid;grid-template-columns:minmax(380px,460px) minmax(280px,1fr);gap:14px;align-items:start;margin-top:10px}
+.canvas-preview-col{min-width:0}
+.canvas-shell{margin-top:0;border:1px solid #0f3342;background:linear-gradient(180deg,#050d15,#09161f);border-radius:0;padding:14px;display:flex;justify-content:center;box-shadow:inset 0 0 0 1px rgba(56,214,255,.16)}
+.canvas-phone{position:relative;width:360px;min-height:640px;border-radius:0;overflow:hidden;border:1px solid #123847;background:#051019;box-shadow:0 0 0 1px rgba(56,214,255,.2),0 0 28px rgba(0,0,0,.55)}
+.canvas-payload-panel{border:1px solid var(--line);background:linear-gradient(160deg,#07151d,#06101a);padding:14px;border-radius:0;opacity:0;transform:translateX(26px);pointer-events:none;transition:opacity .35s ease,transform .35s ease}
+.canvas-payload-panel.visible{opacity:1;transform:translateX(0);pointer-events:auto}
+.canvas-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.canvas-payload-panel h3{margin:0 0 8px;font-size:14px;letter-spacing:.07em;text-transform:uppercase;color:#b7f8ff}
+.canvas-payload-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.canvas-payload-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.panel-close{padding:4px 8px;min-width:0;line-height:1}
 .canvas-tile{position:absolute;overflow:hidden;display:flex;align-items:flex-end;cursor:grab;user-select:none;transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease}
 .canvas-tile.active{border-color:var(--accent)!important;box-shadow:0 0 0 1px rgba(0,255,136,.4) inset}
 .canvas-tile.dragging{opacity:.45}
 .canvas-tile.drag-over{outline:2px dashed var(--accent-2);outline-offset:2px}
 .canvas-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.12;pointer-events:none}
+.canvas-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.5;filter:saturate(1.15) contrast(1.05)}
 .canvas-content{position:relative;z-index:2}
 .canvas-label{font-weight:700;line-height:1.2}
 .canvas-meta{font-size:11px}
-.canvas-size{position:absolute;top:8px;left:8px;z-index:3;background:#082c3e;color:#93ecff;font-size:11px;border-radius:999px;border:1px solid #19516b;padding:2px 8px}
-.resize-handle{position:absolute;right:8px;bottom:8px;width:14px;height:14px;border-radius:4px;border:1px solid #3d7182;background:#071f2b;cursor:nwse-resize;z-index:4}
+.canvas-size{position:absolute;top:8px;left:8px;z-index:3;background:#082c3e;color:#93ecff;font-size:11px;border-radius:0;border:1px solid #19516b;padding:2px 8px}
+.resize-handle{position:absolute;right:8px;bottom:8px;width:14px;height:14px;border-radius:0;border:1px solid #3d7182;background:#071f2b;cursor:nwse-resize;z-index:4}
 .canvas-theme{min-width:260px}
+.canvas-image-preview{margin-top:8px;border:1px solid var(--line);height:110px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#04111a}
+.canvas-image-preview img{width:100%;height:100%;object-fit:cover}
+.canvas-image-preview span{font-size:11px;color:var(--muted)}
 label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase}
-input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#041019;color:var(--text);font-family:inherit}
+input,select{width:100%;border:1px solid var(--line);border-radius:0;padding:10px 12px;font-size:14px;background:#041019;color:var(--text);font-family:inherit}
 input::placeholder{color:#4f8b77}
 input:focus,select:focus,button:focus{outline:2px solid rgba(0,255,136,.38);outline-offset:1px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
-button{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-weight:700;cursor:pointer;background:#071822;color:var(--text);font-family:inherit;letter-spacing:.03em;text-transform:uppercase;font-size:12px}
+button{border:1px solid var(--line);border-radius:0;padding:10px 12px;font-weight:700;cursor:pointer;background:#071822;color:var(--text);font-family:inherit;letter-spacing:.03em;text-transform:uppercase;font-size:12px}
 button:hover{border-color:rgba(0,255,136,.6);background:#0a2328}
 button.primary{background:linear-gradient(180deg,#00c76b,#00a85a);border-color:#00c76b;color:#001b0f}
 button.primary:hover{background:linear-gradient(180deg,#00dd76,#00b864)}
 button.danger{background:linear-gradient(180deg,#ff5f7a,#e94563);border-color:#ff5f7a;color:#24040c}
 button.ghost{background:#05131a;border:1px solid var(--line)}
 .meta{margin-top:10px;font-size:12px;color:var(--muted)}
-pre{background:#030d14;color:#9dffc7;border-radius:10px;border:1px solid #154536;padding:12px;overflow:auto;font-size:12px;max-height:250px}
+pre{background:#030d14;color:#9dffc7;border-radius:0;border:1px solid #154536;padding:12px;overflow:auto;font-size:12px;max-height:250px}
 code{color:#93ecff}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th,td{border-bottom:1px solid var(--line);padding:8px;text-align:left}
 th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+@media (max-width: 1100px){.canvas-stage{grid-template-columns:1fr}.canvas-payload-panel{max-width:none}}
 @media (max-width: 900px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.status{justify-content:flex-start}}
 </style>
 </head><body>
@@ -945,7 +965,7 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
   </div>
 
   <div class="grid">
-    <section class="card">
+    <section class="card legacy-panel">
       <h2>Tile Registry</h2>
       <div class="muted">Select a tile to edit. Keyboard: Tab to controls, Enter to activate.</div>
       <div id="tile-list" class="list" aria-label="tile list"></div>
@@ -956,7 +976,7 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
       <div class="meta">Dirty: <b id="dirty">no</b> | Last Saved: <b id="saved">never</b></div>
     </section>
 
-    <section class="card">
+    <section class="card legacy-panel">
       <h2>Payload Editor</h2>
       <div class="row">
         <div>
@@ -994,6 +1014,7 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
         <label for="tile-target" id="tile-target-label">Target URL</label>
         <input id="tile-target" type="text" placeholder="https://example.com"/>
       </div>
+      <input id="tile-image" type="hidden" value=""/>
 
       <div class="actions">
         <button id="create-tile" data-builder-control="create" class="primary" onclick="createTile()">Create Tile</button>
@@ -1007,13 +1028,82 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
 
     <section class="card" style="grid-column:1 / -1">
       <h2>Handset Mirror Canvas</h2>
-      <div class="muted">Phone-accurate preview. Drag to reorder, drag handle to resize, scroll wheel to nudge size (Shift = width), and double-click a tile to edit values.</div>
-      <div class="actions" style="margin-top:8px">
-        <label for="canvas-theme" style="margin:0">Preview Theme</label>
-        <select id="canvas-theme" class="canvas-theme"></select>
-      </div>
-      <div class="canvas-shell">
-        <div id="layout-canvas" class="canvas-phone" aria-label="layout canvas"></div>
+      <div class="muted">Phone-accurate preview. Drag to reorder, drag handle to resize, scroll wheel to nudge size (Shift = width). Click any tile in the mirror to slide in the payload editor at right.</div>
+      <div class="canvas-stage">
+        <div class="canvas-preview-col">
+          <div class="actions" style="margin-top:8px">
+            <label for="canvas-theme" style="margin:0">Preview Theme</label>
+            <select id="canvas-theme" class="canvas-theme"></select>
+          </div>
+          <div class="canvas-shell">
+            <div id="layout-canvas" class="canvas-phone" aria-label="layout canvas"></div>
+          </div>
+        </div>
+        <aside id="canvas-payload-panel" class="canvas-payload-panel">
+          <div class="canvas-panel-head">
+            <h3>Mirror Payload Editor</h3>
+            <button id="canvas-payload-close" class="ghost panel-close" type="button" aria-label="Close mirror payload editor">x</button>
+          </div>
+          <div id="canvas-payload-hint" class="muted">Select a tile in the handset mirror canvas to edit payload fields here.</div>
+          <div id="canvas-payload-fields" style="display:none;margin-top:10px">
+            <div style="margin-bottom:10px">
+              <label for="canvas-payload-label">Label</label>
+              <input id="canvas-payload-label" type="text" placeholder="Tile label"/>
+            </div>
+            <div style="margin-bottom:10px">
+              <label for="canvas-payload-icon">Icon</label>
+              <input id="canvas-payload-icon" type="text" placeholder="⭐"/>
+            </div>
+            <div style="margin-bottom:10px">
+              <label for="canvas-payload-image">Image URL (optional)</label>
+              <input id="canvas-payload-image" type="text" placeholder="https://.../tile-image.png"/>
+            </div>
+            <div style="margin-bottom:10px">
+              <label for="canvas-payload-image-file">Or choose image file</label>
+              <input id="canvas-payload-image-file" type="file" accept="image/*"/>
+              <div class="canvas-image-preview" id="canvas-image-preview"><span>No image selected</span></div>
+            </div>
+            <div style="margin-bottom:10px">
+              <label for="canvas-payload-action">Action</label>
+              <select id="canvas-payload-action">
+                <option value="open_url">Open URL</option>
+                <option value="open_app">Open App</option>
+                <option value="media_play_pause">Media Play/Pause</option>
+                <option value="media_next">Media Next</option>
+                <option value="media_previous">Media Previous</option>
+                <option value="volume_up">Volume Up</option>
+                <option value="volume_down">Volume Down</option>
+                <option value="volume_mute">Volume Mute</option>
+                <option value="system_lock">System Lock</option>
+                <option value="system_sleep">System Sleep</option>
+                <option value="system_shutdown">System Shutdown</option>
+                <option value="system_restart">System Restart</option>
+                <option value="open_task_manager">Open Task Manager</option>
+              </select>
+            </div>
+            <div style="margin-bottom:10px">
+              <label for="canvas-payload-target" id="canvas-payload-target-label">Target URL</label>
+              <input id="canvas-payload-target" type="text" placeholder="https://example.com"/>
+            </div>
+            <div class="canvas-payload-grid">
+              <div>
+                <label for="canvas-payload-cols">Columns</label>
+                <input id="canvas-payload-cols" type="number" min="1" max="4" value="2"/>
+              </div>
+              <div>
+                <label for="canvas-payload-rows">Rows</label>
+                <input id="canvas-payload-rows" type="number" min="1" max="4" value="1"/>
+              </div>
+            </div>
+            <div class="canvas-payload-actions">
+              <button id="canvas-payload-apply" class="primary" type="button">Apply Payload</button>
+              <button id="canvas-payload-reset" class="ghost" type="button">Reset</button>
+              <button id="canvas-create-tile" data-builder-control="create" class="ghost" type="button">Create Tile</button>
+              <button id="canvas-delete-tile" data-builder-control="delete" class="danger" type="button">Delete Selected</button>
+              <button id="canvas-save-layout" data-builder-control="save" class="primary" type="button">Save Layout</button>
+            </div>
+          </div>
+        </aside>
       </div>
     </section>
 
@@ -1125,6 +1215,23 @@ let activeCanvasThemeId = localStorage.getItem(BUILDER_THEME_KEY) || "neo_brutal
 let lastCanvasMetrics = null;
 let lastPlacementsByTileId = new Map();
 let resizeNudgeInFlight = new Set();
+let mirrorPayloadPanelClosed = true;
+
+const SUPPORTED_ACTIONS = [
+  "open_url",
+  "open_app",
+  "media_play_pause",
+  "media_next",
+  "media_previous",
+  "volume_up",
+  "volume_down",
+  "volume_mute",
+  "system_lock",
+  "system_sleep",
+  "system_shutdown",
+  "system_restart",
+  "open_task_manager",
+];
 
 if (!TILE_THEMES[activeCanvasThemeId]) {
   activeCanvasThemeId = "neo_brutal";
@@ -1292,6 +1399,7 @@ async function patchTile(tileId, body, successMessage) {
   }
   renderTileList();
   renderLayoutCanvas();
+  renderCanvasPayloadPanel();
   await refreshPreview();
   return payload.tile;
 }
@@ -1331,30 +1439,15 @@ async function quickEditTile(tileId) {
     return;
   }
 
-  const supportedActions = [
-    "open_url",
-    "open_app",
-    "media_play_pause",
-    "media_next",
-    "media_previous",
-    "volume_up",
-    "volume_down",
-    "volume_mute",
-    "system_lock",
-    "system_sleep",
-    "system_shutdown",
-    "system_restart",
-    "open_task_manager",
-  ];
   const actionPrompt =
-    "Action type (" + supportedActions.join(", ") + ")";
+    "Action type (" + SUPPORTED_ACTIONS.join(", ") + ")";
   const actionTypeInput = prompt(actionPrompt, tile.actionType || "open_url");
   if (actionTypeInput === null) {
     return;
   }
 
   const nextActionType = actionTypeInput.trim();
-  if (!supportedActions.includes(nextActionType)) {
+  if (!SUPPORTED_ACTIONS.includes(nextActionType)) {
     alert("Unsupported action type.");
     return;
   }
@@ -1552,6 +1645,10 @@ function renderLayoutCanvas() {
       const top = screenPadding + (placement.row * (TILE_ROW_HEIGHT + gap));
       const compactTile = height < 120;
       const iconSize = Math.max(32, Math.round(height * 0.52));
+      const imageUrl = String(tile.imageUrl || "").trim();
+      const visualLayer = imageUrl
+        ? '<img class="canvas-image" src="' + escapeHtml(imageUrl) + '" alt="tile visual"/>'
+        : '<div class="canvas-icon" style="font-size:' + iconSize + 'px;color:' + theme.iconTint + ';">' + escapeHtml(iconGlyph(tile.icon)) + '</div>';
 
       lastPlacementsByTileId.set(tile.id, {
         left,
@@ -1563,9 +1660,9 @@ function renderLayoutCanvas() {
       });
 
       return (
-        '<div class="canvas-tile' + active + '" draggable="true" data-tile-id="' + escapeHtml(tile.id) + '" style="left:' + left + 'px;top:' + top + 'px;width:' + width + 'px;height:' + height + 'px;background:' + theme.background + ';border:' + theme.borderWidth + 'px solid ' + theme.border + ';border-radius:' + theme.radius + 'px;box-shadow:' + theme.boxShadow + ';">' +
+        '<div class="canvas-tile' + active + '" draggable="true" data-tile-id="' + escapeHtml(tile.id) + '" style="left:' + left + 'px;top:' + top + 'px;width:' + width + 'px;height:' + height + 'px;background:' + theme.background + ';border:' + theme.borderWidth + 'px solid ' + theme.border + ';border-radius:0;box-shadow:' + theme.boxShadow + ';">' +
           '<div class="canvas-size">' + cols + 'x' + rows + '</div>' +
-          '<div class="canvas-icon" style="font-size:' + iconSize + 'px;color:' + theme.iconTint + ';">' + escapeHtml(iconGlyph(tile.icon)) + '</div>' +
+          visualLayer +
           '<div class="canvas-content" style="padding:' + (compactTile ? 8 : 12) + 'px;">' +
             '<div class="canvas-label" style="font-size:' + (compactTile ? 14 : 16) + 'px;color:' + theme.text + ';max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:' + (compactTile ? 'nowrap' : 'normal') + ';">' + escapeHtml(tile.label) + '</div>' +
             '<div class="canvas-meta" style="color:' + theme.meta + ';display:' + (compactTile ? 'none' : 'block') + ';">' + escapeHtml(tile.actionType) + '</div>' +
@@ -1718,6 +1815,7 @@ function renderHistory(rows) {
 function setForm(tile) {
   document.getElementById("tile-label").value = tile ? tile.label : "";
   document.getElementById("tile-icon").value = tile ? tile.icon : "";
+  document.getElementById("tile-image").value = tile ? (tile.imageUrl || "") : "";
   document.getElementById("tile-cols").value = tile ? String(tile.spanCols || 2) : "2";
   document.getElementById("tile-rows").value = tile ? String(tile.spanRows || 1) : "1";
   const actionType = tile ? tile.actionType : "open_url";
@@ -1757,6 +1855,134 @@ function syncTargetUi() {
   }
 }
 
+function syncCanvasPayloadTargetUi() {
+  const actionType = document.getElementById("canvas-payload-action").value;
+  const targetLabel = document.getElementById("canvas-payload-target-label");
+  const targetInput = document.getElementById("canvas-payload-target");
+
+  if (actionType === "open_url") {
+    targetLabel.textContent = "Target URL";
+    targetInput.placeholder = "https://example.com";
+    targetInput.disabled = false;
+  } else if (actionType === "open_app") {
+    targetLabel.textContent = "Application Command";
+    targetInput.placeholder = "notepad.exe";
+    targetInput.disabled = false;
+  } else {
+    targetLabel.textContent = "No target needed";
+    targetInput.placeholder = "Action has no target";
+    targetInput.disabled = true;
+    targetInput.value = "";
+  }
+}
+
+function renderCanvasImagePreview() {
+  const preview = document.getElementById("canvas-image-preview");
+  const imageUrl = document.getElementById("canvas-payload-image").value.trim();
+  if (!imageUrl) {
+    preview.innerHTML = "<span>No image selected</span>";
+    return;
+  }
+
+  preview.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" alt="tile image preview"/>';
+}
+
+function readImageFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(typeof reader.result === "string" ? reader.result : "");
+    };
+    reader.onerror = () => {
+      reject(new Error("image_read_failed"));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function readCanvasPayloadForm() {
+  const actionType = document.getElementById("canvas-payload-action").value;
+  const rawTarget = document.getElementById("canvas-payload-target").value.trim();
+  const actionValue = (actionType === "open_url" || actionType === "open_app") ? rawTarget : "";
+  return {
+    label: document.getElementById("canvas-payload-label").value.trim() || "Untitled Tile",
+    icon: document.getElementById("canvas-payload-icon").value.trim() || "⭐",
+    imageUrl: document.getElementById("canvas-payload-image").value.trim(),
+    actionType,
+    actionValue,
+    spanCols: normalizeTileSpan(document.getElementById("canvas-payload-cols").value, 2),
+    spanRows: normalizeTileSpan(document.getElementById("canvas-payload-rows").value, 1),
+  };
+}
+
+function renderCanvasPayloadPanel(forceOpen = false) {
+  const panel = document.getElementById("canvas-payload-panel");
+  const hint = document.getElementById("canvas-payload-hint");
+  const fields = document.getElementById("canvas-payload-fields");
+  const tile = selectedTile();
+
+  if (forceOpen) {
+    mirrorPayloadPanelClosed = false;
+  }
+
+  if (!tile) {
+    panel.classList.remove("visible");
+    hint.textContent = "Select a tile in the handset mirror canvas to edit payload fields here.";
+    fields.style.display = "none";
+    return;
+  }
+
+  fields.style.display = "block";
+  hint.textContent = "Editing " + tile.label + " (" + tile.id + ")";
+  document.getElementById("canvas-payload-label").value = tile.label || "";
+  document.getElementById("canvas-payload-icon").value = tile.icon || "⭐";
+  document.getElementById("canvas-payload-image").value = tile.imageUrl || "";
+  document.getElementById("canvas-payload-image-file").value = "";
+  document.getElementById("canvas-payload-action").value = tile.actionType || "open_url";
+  document.getElementById("canvas-payload-target").value = tile.actionValue || "";
+  document.getElementById("canvas-payload-cols").value = String(normalizeTileSpan(tile.spanCols, 2));
+  document.getElementById("canvas-payload-rows").value = String(normalizeTileSpan(tile.spanRows, 1));
+  syncCanvasPayloadTargetUi();
+  renderCanvasImagePreview();
+  if (mirrorPayloadPanelClosed) {
+    panel.classList.remove("visible");
+  } else {
+    panel.classList.add("visible");
+  }
+}
+
+async function applyCanvasPayloadUpdate() {
+  const tile = selectedTile();
+  if (!tile) {
+    setMessage("Select a tile in canvas first.");
+    return;
+  }
+
+  const body = readCanvasPayloadForm();
+  await patchTile(tile.id, body, "Updated tile from mirror payload editor.");
+  renderCanvasPayloadPanel(true);
+}
+
+async function createTileFromCanvasPanel() {
+  const body = readCanvasPayloadForm();
+  const resp = await fetch("/dashboard/tiles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await resp.json();
+  if (resp.status >= 400) {
+    throw new Error(payload.reason || String(resp.status));
+  }
+  dashboard = payload.dashboard;
+  selectedTileId = payload.tile.id;
+  setMessage("Created tile from mirror payload editor.");
+  renderTileList();
+  renderLayoutCanvas();
+  renderCanvasPayloadPanel(true);
+  await refreshPreview();
+}
+
 function selectTile(id) {
   selectedTileId = id;
   const tile = selectedTile();
@@ -1764,6 +1990,7 @@ function selectTile(id) {
   setMessage(tile ? "Editing " + tile.label + " (" + tile.id + ")" : "Tile not found.");
   renderTileList();
   renderLayoutCanvas();
+  renderCanvasPayloadPanel(true);
 }
 
 async function refreshDashboard() {
@@ -1774,6 +2001,7 @@ async function refreshDashboard() {
   }
   renderTileList();
   renderLayoutCanvas();
+  renderCanvasPayloadPanel();
 }
 
 async function refreshPreview() {
@@ -1794,6 +2022,7 @@ function readForm() {
   return {
     label: document.getElementById("tile-label").value.trim() || "Untitled Tile",
     icon: document.getElementById("tile-icon").value.trim() || "⭐",
+    imageUrl: document.getElementById("tile-image").value.trim(),
     actionType,
     actionValue,
     spanCols,
@@ -1815,6 +2044,7 @@ async function createTile() {
   setMessage("Created tile: " + payload.tile.label);
   renderTileList();
   renderLayoutCanvas();
+  renderCanvasPayloadPanel();
   await refreshPreview();
 }
 
@@ -1841,6 +2071,7 @@ async function updateSelectedTile() {
   setMessage("Updated tile: " + payload.tile.label);
   renderTileList();
   renderLayoutCanvas();
+  renderCanvasPayloadPanel();
   await refreshPreview();
 }
 
@@ -1855,6 +2086,7 @@ async function deleteSelectedTile() {
   setForm(null);
   setMessage("Deleted tile: " + tile.label);
   await refreshDashboard();
+  renderCanvasPayloadPanel();
   await refreshPreview();
 }
 
@@ -1894,11 +2126,8 @@ async function hydrate() {
   await refreshDashboard();
   await refreshPreview();
   await refreshHistory();
-  if (dashboard.tiles.length) {
-    selectTile(dashboard.tiles[0].id);
-  } else {
-    setForm(null);
-  }
+  setForm(null);
+  renderCanvasPayloadPanel();
   document.getElementById("canvas-theme").addEventListener("change", (event) => {
     const next = event.target.value;
     if (!TILE_THEMES[next]) {
@@ -1911,6 +2140,50 @@ async function hydrate() {
   });
   document.getElementById("tile-action").addEventListener("change", syncTargetUi);
   document.getElementById("tile-icon").addEventListener("input", renderIconPicker);
+  document.getElementById("canvas-payload-action").addEventListener("change", syncCanvasPayloadTargetUi);
+  document.getElementById("canvas-payload-image").addEventListener("input", renderCanvasImagePreview);
+  document.getElementById("canvas-payload-image-file").addEventListener("change", (event) => {
+    const input = event.target;
+    const file = input.files && input.files[0];
+    if (!file) {
+      return;
+    }
+    readImageFileAsDataUrl(file)
+      .then((dataUrl) => {
+        document.getElementById("canvas-payload-image").value = dataUrl;
+        renderCanvasImagePreview();
+      })
+      .catch((error) => {
+        setMessage("Image load failed: " + error.message);
+      });
+  });
+  document.getElementById("canvas-payload-apply").addEventListener("click", () => {
+    applyCanvasPayloadUpdate().catch((error) => {
+      setMessage("Canvas payload update failed: " + error.message);
+    });
+  });
+  document.getElementById("canvas-payload-reset").addEventListener("click", () => {
+    renderCanvasPayloadPanel(true);
+  });
+  document.getElementById("canvas-payload-close").addEventListener("click", () => {
+    mirrorPayloadPanelClosed = true;
+    document.getElementById("canvas-payload-panel").classList.remove("visible");
+  });
+  document.getElementById("canvas-create-tile").addEventListener("click", () => {
+    createTileFromCanvasPanel().catch((error) => {
+      setMessage("Create failed: " + error.message);
+    });
+  });
+  document.getElementById("canvas-delete-tile").addEventListener("click", () => {
+    deleteSelectedTile().catch((error) => {
+      setMessage("Delete failed: " + error.message);
+    });
+  });
+  document.getElementById("canvas-save-layout").addEventListener("click", () => {
+    saveLayout().catch((error) => {
+      setMessage("Save failed: " + error.message);
+    });
+  });
   window.addEventListener("mousemove", onResizeMove);
   window.addEventListener("mouseup", () => {
     onResizeEnd().catch((error) => {
