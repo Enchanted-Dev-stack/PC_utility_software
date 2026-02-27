@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const http = require("node:http");
@@ -10,6 +10,9 @@ const HEALTH_RETRY_MS = 250;
 const HEALTH_TIMEOUT_MS = 15_000;
 
 let embeddedServer = null;
+let mainWindow = null;
+let tray = null;
+let isQuitting = false;
 
 function pingServer() {
   return new Promise((resolve) => {
@@ -73,6 +76,90 @@ function stopEmbeddedServer() {
   child.kill();
 }
 
+function createTrayIcon() {
+  const icon = nativeImage.createFromDataURL(
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAPElEQVR4AWNgoBAwUqifgYGBkYHhP4NQIwMDA8P///8YGBgY/oeJQYJkYGBg+P//PwMDA8P///8ZGBhGAAAtNQ1fylh4ZwAAAABJRU5ErkJggg=="
+  );
+  return icon;
+}
+
+function showMainWindow() {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  mainWindow.focus();
+}
+
+function hideMainWindow() {
+  if (!mainWindow) {
+    return;
+  }
+  mainWindow.hide();
+}
+
+function createTray() {
+  if (tray) {
+    return;
+  }
+
+  tray = new Tray(createTrayIcon());
+  tray.setToolTip("PC Remote Control Studio");
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: "Open PC Remote",
+      click: () => showMainWindow(),
+    },
+    {
+      label: "Hide Window",
+      click: () => hideMainWindow(),
+    },
+    {
+      label: "Reload",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.reload();
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(menu);
+  tray.on("click", () => {
+    if (!mainWindow) {
+      return;
+    }
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+      return;
+    }
+    showMainWindow();
+  });
+}
+
+function destroyTray() {
+  if (!tray) {
+    return;
+  }
+  tray.destroy();
+  tray = null;
+}
+
 async function ensureServerReady() {
   if (await pingServer()) {
     return;
@@ -87,7 +174,7 @@ async function ensureServerReady() {
 }
 
 function createMainWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1360,
     height: 900,
     minWidth: 1100,
@@ -110,6 +197,19 @@ function createMainWindow() {
     mainWindow.show();
   });
 
+  mainWindow.on("close", (event) => {
+    if (isQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow.hide();
+  });
+
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+
   const entryUrl = new URL(SERVER_ENTRY, SERVER_URL).toString();
   mainWindow.loadURL(entryUrl);
 }
@@ -124,20 +224,24 @@ app.whenReady().then(async () => {
   }
 
   createMainWindow();
+  createTray();
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (!mainWindow) {
       createMainWindow();
+      return;
     }
+
+    showMainWindow();
   });
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  // Keep app alive in tray.
 });
 
 app.on("before-quit", () => {
+  isQuitting = true;
+  destroyTray();
   stopEmbeddedServer();
 });
