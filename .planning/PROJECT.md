@@ -8,6 +8,15 @@ PC Remote Control Studio is a local-first system that lets a user control their 
 
 A user can tap custom tiles on their phone and instantly trigger the right action on their PC through a polished, easy-to-configure interface.
 
+## Current Milestone: v1.1 UI Polish and UX Refinement
+
+**Goal:** Upgrade desktop builder and mobile dashboard from functional MVP UI to production-quality UX while preserving existing behavior.
+
+**Target features:**
+- Unified visual design system (type scale, spacing, color usage, component states) across desktop and mobile.
+- Builder and dashboard interaction polish (hover/focus/active states, transitions, feedback clarity, perceived responsiveness).
+- Live preview visual fidelity improvements and consistency checks between desktop editor and phone presentation.
+
 ## Requirements
 
 ### Validated
@@ -16,9 +25,9 @@ A user can tap custom tiles on their phone and instantly trigger the right actio
 
 ### Active
 
-- [ ] User can pair phone and PC over local Wi-Fi and establish a trusted connection.
-- [ ] User can create, edit, reorder, and delete custom tiles from a PC control panel.
-- [ ] User can trigger mapped actions from phone tiles with fast, reliable execution on PC.
+- [ ] User can use a visually polished desktop builder with clear hierarchy, spacing, and interaction states.
+- [ ] User can view a mobile dashboard with refined layout, typography, and motion consistent with desktop preview.
+- [ ] User can trust that UI polish does not regress existing pairing, runtime actions, and preview synchronization behavior.
 
 ### Out of Scope
 
@@ -48,6 +57,7 @@ A user can tap custom tiles on their phone and instantly trigger the right actio
 | Build a desktop control panel with live mobile preview | Keeps customization intuitive and makes the phone UI predictable before publishing | - Pending |
 | Start with simple action set (open app, open URL, media controls) | Maximizes early utility while keeping implementation and security manageable | - Pending |
 | Progressively add advanced features after MVP | Matches user request to keep complexity low first, then expand safely | - Pending |
+| Start milestone v1.1 focused on UI polish and UX refinement | Core functionality is validated; next leverage is product quality and presentation consistency | - Pending |
 
 ---
-*Last updated: 2026-02-27 after initialization*
+*Last updated: 2026-02-27 after milestone v1.1 kickoff*
