@@ -132,7 +132,7 @@ Plans:
 
 Plans:
 - [x] 07-01-PLAN.md - Establish desktop keyboard/focus accessibility baseline contracts and model regression checks.
-- [ ] 07-02-PLAN.md - Add readable typography and target-size accessibility minima across tokens/themes.
+- [x] 07-02-PLAN.md - Add readable typography and target-size accessibility minima across tokens/themes.
 - [ ] 07-03-PLAN.md - Deliver deterministic accessibility and visual regression release gate command.
 
 ## Progress
@@ -148,4 +148,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Unified Visual System | 3/3 | Complete | 2026-02-27 |
 | 5. Builder Interaction Clarity | 3/3 | Complete | 2026-02-27 |
 | 6. Preview Fidelity and Persistence | 3/3 | Complete | 2026-02-27 |
-| 7. Accessibility and Regression Gates | 1/3 | In Progress | - |
+| 7. Accessibility and Regression Gates | 2/3 | In Progress | - |
