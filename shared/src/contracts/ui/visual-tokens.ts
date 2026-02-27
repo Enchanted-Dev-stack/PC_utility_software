@@ -1,3 +1,11 @@
+import {
+  ACCESSIBILITY_TARGET_SIZE_MINIMUMS,
+  ACCESSIBILITY_TYPOGRAPHY_MINIMUMS,
+  type AccessibilitySurface,
+  type TargetSizeMinimum,
+  type TypographyMinimum
+} from "./accessibility-standards";
+
 export const VISUAL_TYPOGRAPHY_ROLES = [
   "title",
   "subtitle",
@@ -56,6 +64,18 @@ export interface VisualTokens {
   };
   elevation: Record<VisualElevationTier, number>;
   semantic: Record<VisualSemanticTone, SemanticColorToken>;
+  accessibility: {
+    typographyMinimums: Record<AccessibilitySurface, {
+      body: TypographyMinimum;
+      label: TypographyMinimum;
+      caption: TypographyMinimum;
+    }>;
+    targetSizeMinimums: Record<AccessibilitySurface, {
+      tile: TargetSizeMinimum;
+      control: TargetSizeMinimum;
+      banner: TargetSizeMinimum;
+    }>;
+  };
 }
 
 export const VISUAL_TOKENS: VisualTokens = {
@@ -113,5 +133,9 @@ export const VISUAL_TOKENS: VisualTokens = {
       foreground: "#7F1D1D",
       focusRing: "#B91C1C"
     }
+  },
+  accessibility: {
+    typographyMinimums: ACCESSIBILITY_TYPOGRAPHY_MINIMUMS,
+    targetSizeMinimums: ACCESSIBILITY_TARGET_SIZE_MINIMUMS
   }
 };

@@ -1,4 +1,10 @@
 import {
+  ACCESSIBILITY_TARGET_SIZE_MINIMUMS,
+  ACCESSIBILITY_TYPOGRAPHY_MINIMUMS,
+  type TargetSizeMinimum,
+  type TypographyMinimum
+} from "../../../../../shared/src/contracts/ui/accessibility-standards";
+import {
   VISUAL_TOKENS,
   type VisualInteractionState,
   type VisualSemanticTone,
@@ -16,6 +22,10 @@ export interface DesktopSurfaceAppearance {
   radiusRole: "md" | "lg";
   semanticTone: VisualSemanticTone;
   states: Record<VisualInteractionState, VisualStateStyle>;
+  accessibility: {
+    typographyMinimum: TypographyMinimum;
+    minTargetSize: TargetSizeMinimum;
+  };
 }
 
 export interface DesktopControlPanelAppearance {
@@ -36,7 +46,11 @@ export function createDesktopSurfaceAppearance(
     spacingRole,
     radiusRole: component === "tile" ? "lg" : "md",
     semanticTone: tone,
-    states: resolveVisualStateBundle(component, tone).states
+    states: resolveVisualStateBundle(component, tone).states,
+    accessibility: {
+      typographyMinimum: toDesktopTypographyMinimum(typographyRole),
+      minTargetSize: ACCESSIBILITY_TARGET_SIZE_MINIMUMS.desktop[component]
+    }
   };
 }
 
@@ -73,3 +87,13 @@ export function mapDesktopToneToSemantic(
 }
 
 export const DESKTOP_THEME_VERSION = `${VISUAL_TOKENS.spacing.md}-${VISUAL_TOKENS.radius.md}`;
+
+function toDesktopTypographyMinimum(role: VisualTypographyRole): TypographyMinimum {
+  if (role === "caption") {
+    return ACCESSIBILITY_TYPOGRAPHY_MINIMUMS.desktop.caption;
+  }
+  if (role === "label") {
+    return ACCESSIBILITY_TYPOGRAPHY_MINIMUMS.desktop.label;
+  }
+  return ACCESSIBILITY_TYPOGRAPHY_MINIMUMS.desktop.body;
+}
