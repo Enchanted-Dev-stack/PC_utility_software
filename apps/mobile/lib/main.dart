@@ -600,6 +600,8 @@ class _TileScreenState extends State<TileScreen> {
   List<Map<String, dynamic>> profiles = const [];
   String activeProfileId = '';
   String activeProfileName = '';
+  List<Map<String, dynamic>> _sceneTiles = const [];
+  String _sceneProfileId = '';
   String themeId = 'neo_brutal';
   StreamSubscription<AccelerometerEvent>? _shakeSubscription;
   DateTime? _lastShakeAt;
@@ -701,12 +703,28 @@ class _TileScreenState extends State<TileScreen> {
       return;
     }
 
+    final nextProfileId = '${body['activeProfileId'] ?? activeProfileId}';
+
     final tiles = (body['tiles'] as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
+    final nextTiles = _cloneTiles(tiles);
+    final switchingProfile = nextProfileId.isNotEmpty && nextProfileId != _sceneProfileId;
+
     setState(() {
       _lastLayoutVersion = layoutVersion;
-      previewTiles = tiles;
+      previewTiles = nextTiles;
+      if (_sceneProfileId.isEmpty) {
+        _sceneProfileId = nextProfileId;
+        _sceneTiles = nextTiles;
+      } else if (switchingProfile) {
+        _profileTransitionDirection = _directionBetweenProfiles(_sceneProfileId, nextProfileId);
+        _profileTransitionSeed += 1;
+        _sceneProfileId = nextProfileId;
+        _sceneTiles = nextTiles;
+      } else {
+        _sceneTiles = nextTiles;
+      }
     });
   }
 
@@ -729,17 +747,24 @@ class _TileScreenState extends State<TileScreen> {
     });
   }
 
-  int _directionToProfile(String profileId) {
-    final currentIndex = profiles.indexWhere(
-      (profile) => '${profile['id'] ?? ''}' == activeProfileId,
-    );
-    final targetIndex = profiles.indexWhere(
-      (profile) => '${profile['id'] ?? ''}' == profileId,
-    );
-    if (currentIndex == -1 || targetIndex == -1 || currentIndex == targetIndex) {
+  List<Map<String, dynamic>> _cloneTiles(List<Map<String, dynamic>> source) {
+    return source.map((tile) => Map<String, dynamic>.from(tile)).toList(growable: false);
+  }
+
+  int _directionBetweenProfiles(String fromProfileId, String toProfileId) {
+    if (fromProfileId.isEmpty || toProfileId.isEmpty || fromProfileId == toProfileId) {
       return 1;
     }
-    return targetIndex > currentIndex ? 1 : -1;
+    final fromIndex = profiles.indexWhere((profile) => '${profile['id'] ?? ''}' == fromProfileId);
+    final toIndex = profiles.indexWhere((profile) => '${profile['id'] ?? ''}' == toProfileId);
+    if (fromIndex == -1 || toIndex == -1 || fromIndex == toIndex) {
+      return 1;
+    }
+    return toIndex > fromIndex ? 1 : -1;
+  }
+
+  int _directionToProfile(String profileId) {
+    return _directionBetweenProfiles(activeProfileId, profileId);
   }
 
   Future<void> _switchProfile(
@@ -752,7 +777,6 @@ class _TileScreenState extends State<TileScreen> {
     }
 
     _profileTransitionDirection = direction ?? _directionToProfile(profileId);
-    _profileTransitionSeed += 1;
 
     final response = await http.post(
       _url('/profiles/switch'),
@@ -939,8 +963,8 @@ class _TileScreenState extends State<TileScreen> {
   }
 
   void _setLocalTileSpan(String tileId, int spanCols, int spanRows) {
-    setState(() {
-      previewTiles = previewTiles.map((tile) {
+    List<Map<String, dynamic>> applyUpdate(List<Map<String, dynamic>> source) {
+      return source.map((tile) {
         if ('${tile['id'] ?? ''}' != tileId) {
           return tile;
         }
@@ -948,7 +972,12 @@ class _TileScreenState extends State<TileScreen> {
         updated['spanCols'] = spanCols;
         updated['spanRows'] = spanRows;
         return updated;
-      }).toList();
+      }).toList(growable: false);
+    }
+
+    setState(() {
+      previewTiles = applyUpdate(previewTiles);
+      _sceneTiles = applyUpdate(_sceneTiles);
     });
   }
 
@@ -1399,7 +1428,9 @@ class _TileScreenState extends State<TileScreen> {
   void initState() {
     super.initState();
     paired = widget.initiallyPaired;
-    previewTiles = widget.initialTiles;
+    previewTiles = _cloneTiles(widget.initialTiles);
+    _sceneTiles = _cloneTiles(widget.initialTiles);
+    _sceneProfileId = activeProfileId;
     _run(() async {
       await _loadTheme();
       await _refreshStatus();
@@ -1442,8 +1473,9 @@ class _TileScreenState extends State<TileScreen> {
               onLongPress: _openQuickControls,
               child: Builder(
               builder: (context) {
+                final sceneTiles = _sceneTiles;
                 final profileSceneKey =
-                    'profile-scene-${activeProfileId.isNotEmpty ? activeProfileId : 'default'}-$_profileTransitionSeed';
+                    'profile-scene-${_sceneProfileId.isNotEmpty ? _sceneProfileId : 'default'}-$_profileTransitionSeed';
                 final tileListView = ScrollConfiguration(
                   behavior: const MaterialScrollBehavior().copyWith(overscroll: false),
                   child: ListView(
@@ -1484,7 +1516,7 @@ class _TileScreenState extends State<TileScreen> {
                     },
                     child: KeyedSubtree(
                       key: ValueKey<String>(profileSceneKey),
-                      child: previewTiles.isEmpty
+                      child: sceneTiles.isEmpty
                           ? SizedBox(
                               height: MediaQuery.of(context).size.height * 0.72,
                               child: Center(
@@ -1506,7 +1538,7 @@ class _TileScreenState extends State<TileScreen> {
                                 final gap = activeTheme.gridGap;
                                 const rowHeight = 96.0;
                                 final placements = _buildPlacements(
-                                  previewTiles,
+                                  sceneTiles,
                                   gridColumns: gridColumns,
                                 );
 
