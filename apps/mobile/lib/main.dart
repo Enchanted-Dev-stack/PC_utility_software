@@ -622,6 +622,8 @@ class _TileScreenState extends State<TileScreen> {
   Offset? _twoFingerStartFocal;
   bool _twoFingerSwipeTriggered = false;
   DateTime? _lastTwoFingerSwipeAt;
+  int _profileTransitionDirection = 1;
+  int _profileTransitionSeed = 0;
 
   Uri _url(String path) => Uri.parse('${widget.baseUrl}$path');
 
@@ -727,10 +729,30 @@ class _TileScreenState extends State<TileScreen> {
     });
   }
 
-  Future<void> _switchProfile(String profileId, {String? profileName}) async {
+  int _directionToProfile(String profileId) {
+    final currentIndex = profiles.indexWhere(
+      (profile) => '${profile['id'] ?? ''}' == activeProfileId,
+    );
+    final targetIndex = profiles.indexWhere(
+      (profile) => '${profile['id'] ?? ''}' == profileId,
+    );
+    if (currentIndex == -1 || targetIndex == -1 || currentIndex == targetIndex) {
+      return 1;
+    }
+    return targetIndex > currentIndex ? 1 : -1;
+  }
+
+  Future<void> _switchProfile(
+    String profileId, {
+    String? profileName,
+    int? direction,
+  }) async {
     if (profileId.isEmpty || profileId == activeProfileId) {
       return;
     }
+
+    _profileTransitionDirection = direction ?? _directionToProfile(profileId);
+    _profileTransitionSeed += 1;
 
     final response = await http.post(
       _url('/profiles/switch'),
@@ -761,7 +783,11 @@ class _TileScreenState extends State<TileScreen> {
     final target = profiles[nextIndex];
     final profileId = '${target['id'] ?? ''}';
     final profileName = '${target['name'] ?? profileId}';
-    await _switchProfile(profileId, profileName: profileName);
+    await _switchProfile(
+      profileId,
+      profileName: profileName,
+      direction: next ? 1 : -1,
+    );
   }
 
   Offset? _twoFingerFocalPoint() {
@@ -1184,7 +1210,13 @@ class _TileScreenState extends State<TileScreen> {
                               label: Text('$name ($count)'),
                               selected: id == activeProfileId,
                               onSelected: (_) async {
-                                await _run(() => _switchProfile(id, profileName: name));
+                                await _run(
+                                  () => _switchProfile(
+                                    id,
+                                    profileName: name,
+                                    direction: _directionToProfile(id),
+                                  ),
+                                );
                                 setSheetState(() {});
                               },
                             );
@@ -1410,6 +1442,8 @@ class _TileScreenState extends State<TileScreen> {
               onLongPress: _openQuickControls,
               child: Builder(
               builder: (context) {
+                final profileSceneKey =
+                    'profile-scene-${activeProfileId.isNotEmpty ? activeProfileId : 'default'}-$_profileTransitionSeed';
                 final tileListView = ScrollConfiguration(
                   behavior: const MaterialScrollBehavior().copyWith(overscroll: false),
                   child: ListView(
@@ -1420,46 +1454,80 @@ class _TileScreenState extends State<TileScreen> {
                           ),
                 padding: EdgeInsets.all(activeTheme.screenPadding),
                 children: [
-                  if (previewTiles.isEmpty)
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.72,
-                      child: Center(
-                        child: Text(
-                          paired
-                              ? 'No tiles available yet'
-                              : 'Pair from home screen first',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF334155),
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        const gridColumns = 4;
-                        final gap = activeTheme.gridGap;
-                        const rowHeight = 96.0;
-                        final placements = _buildPlacements(previewTiles, gridColumns: gridColumns);
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 360),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    layoutBuilder: (currentChild, previousChildren) {
+                      return Stack(
+                        alignment: Alignment.topLeft,
+                        children: <Widget>[
+                          ...previousChildren,
+                          ...(currentChild == null ? const <Widget>[] : <Widget>[currentChild]),
+                        ],
+                      );
+                    },
+                    transitionBuilder: (child, animation) {
+                      final isIncoming =
+                          child.key is ValueKey<String> &&
+                          (child.key as ValueKey<String>).value == profileSceneKey;
+                      final sign = _profileTransitionDirection >= 0 ? 1.0 : -1.0;
+                      final beginDx = isIncoming ? (0.18 * sign) : (-0.18 * sign);
+                      final offset = Tween<Offset>(
+                        begin: Offset(beginDx, 0),
+                        end: Offset.zero,
+                      ).animate(animation);
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(position: offset, child: child),
+                      );
+                    },
+                    child: KeyedSubtree(
+                      key: ValueKey<String>(profileSceneKey),
+                      child: previewTiles.isEmpty
+                          ? SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.72,
+                              child: Center(
+                                child: Text(
+                                  paired
+                                      ? 'No tiles available yet'
+                                      : 'Pair from home screen first',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF334155),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                const gridColumns = 4;
+                                final gap = activeTheme.gridGap;
+                                const rowHeight = 96.0;
+                                final placements = _buildPlacements(
+                                  previewTiles,
+                                  gridColumns: gridColumns,
+                                );
 
-                        var totalRows = 1;
-                        for (final placement in placements) {
-                          final endRow = placement.row + placement.spanRows;
-                          if (endRow > totalRows) {
-                            totalRows = endRow;
-                          }
-                        }
+                                var totalRows = 1;
+                                for (final placement in placements) {
+                                  final endRow = placement.row + placement.spanRows;
+                                  if (endRow > totalRows) {
+                                    totalRows = endRow;
+                                  }
+                                }
 
-                        final cellWidth =
-                            (constraints.maxWidth - ((gridColumns - 1) * gap)) / gridColumns;
-                        final totalHeight = (totalRows * rowHeight) + ((totalRows - 1) * gap);
+                                final cellWidth =
+                                    (constraints.maxWidth - ((gridColumns - 1) * gap)) /
+                                        gridColumns;
+                                final totalHeight = (totalRows * rowHeight) +
+                                    ((totalRows - 1) * gap);
 
-                        return SizedBox(
-                          height: totalHeight,
-                          child: Stack(
-                            children: placements.map((placement) {
+                                return SizedBox(
+                                  height: totalHeight,
+                                  child: Stack(
+                                    children: placements.map((placement) {
                               final tile = placement.tile;
                               final label = '${tile['label'] ?? 'Tile'}';
                               final actionType = '${tile['actionType'] ?? 'open_url'}';
@@ -1730,18 +1798,20 @@ class _TileScreenState extends State<TileScreen> {
                                 );
                               }
 
-                              return Positioned(
-                                left: left,
-                                top: top,
-                                width: width,
-                                height: height,
-                                child: positionedTileChild,
-                              );
-                            }).toList(),
-                          ),
-                        );
-                      },
+                                      return Positioned(
+                                        left: left,
+                                        top: top,
+                                        width: width,
+                                        height: height,
+                                        child: positionedTileChild,
+                                      );
+                                    }).toList(),
+                                  ),
+                                );
+                              },
+                            ),
                     ),
+                  ),
                 ],
                   ),
                 );
