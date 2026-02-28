@@ -36,6 +36,116 @@ const BUILDER_SURFACE_CONTROL_IDS = [
   "delete-last-tile",
   "save-layout",
 ];
+const PROFILE_PRESET_TEMPLATES = [
+  {
+    id: "profile-spotify",
+    name: "Spotify",
+    tiles: [
+      {
+        label: "Open Spotify",
+        icon: "🎵",
+        actionType: "open_app",
+        actionValue: "spotify.exe",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Play/Pause",
+        icon: "▶️",
+        actionType: "media_play_pause",
+        actionValue: "",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Previous",
+        icon: "⏮️",
+        actionType: "media_previous",
+        actionValue: "",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Next",
+        icon: "⏭️",
+        actionType: "media_next",
+        actionValue: "",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Vol +",
+        icon: "🔊",
+        actionType: "spotify_volume_up",
+        actionValue: "",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Vol -",
+        icon: "🔉",
+        actionType: "spotify_volume_down",
+        actionValue: "",
+        spanCols: 2,
+        spanRows: 1,
+      },
+    ],
+  },
+  {
+    id: "profile-premiere-pro",
+    name: "Premiere Pro",
+    tiles: [
+      {
+        label: "Open Premiere",
+        icon: "🎬",
+        actionType: "open_app",
+        actionValue: "Adobe Premiere Pro.exe",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Play/Pause",
+        icon: "⏯️",
+        actionType: "send_hotkey",
+        actionValue: "space",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Save Project",
+        icon: "💾",
+        actionType: "send_hotkey",
+        actionValue: "ctrl+s",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Export Media",
+        icon: "📤",
+        actionType: "send_hotkey",
+        actionValue: "ctrl+m",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Razor + Select",
+        icon: "✂️",
+        actionType: "run_macro",
+        actionValue: "c; wait:90; v",
+        spanCols: 2,
+        spanRows: 1,
+      },
+      {
+        label: "Mark In + Out",
+        icon: "🎞️",
+        actionType: "run_macro",
+        actionValue: "i; wait:90; o",
+        spanCols: 2,
+        spanRows: 1,
+      },
+    ],
+  },
+];
 const recentActionByDevice = new Map();
 const inFlightActions = new Set();
 
@@ -91,7 +201,17 @@ function defaultActionValue(actionType) {
   if (actionType === "open_app") {
     return "notepad.exe";
   }
+  if (actionType === "send_hotkey") {
+    return "ctrl+shift+k";
+  }
+  if (actionType === "run_macro") {
+    return "ctrl+s; wait:120; ctrl+shift+s";
+  }
   return "";
+}
+
+function generateId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function logEvent(type, message) {
@@ -224,6 +344,66 @@ function getProfileById(profileId) {
   return state.dashboard.profiles.find((profile) => profile.id === profileId) || null;
 }
 
+function createProfileFromTemplate(template) {
+  const profileId = String(template.id || generateId("profile"));
+  const tiles = normalizeProfileTiles(
+    (template.tiles || []).map((tile, index) => ({
+      ...tile,
+      id: generateId("tile"),
+      order: index,
+    })),
+  );
+
+  return {
+    id: profileId,
+    name: String(template.name || "Preset Profile"),
+    updatedAt: new Date().toISOString(),
+    tiles,
+  };
+}
+
+function installPresetProfiles(options = {}) {
+  const markDirty = options.markDirty !== false;
+  const overwriteExisting = options.overwriteExisting === true;
+  ensureDashboardProfiles();
+  const created = [];
+  const updated = [];
+
+  for (const template of PROFILE_PRESET_TEMPLATES) {
+    const existing = state.dashboard.profiles.find((profile) => profile.id === template.id);
+    if (existing) {
+      if (!overwriteExisting) {
+        continue;
+      }
+      const refreshed = createProfileFromTemplate(template);
+      existing.name = refreshed.name;
+      existing.tiles = refreshed.tiles;
+      existing.updatedAt = refreshed.updatedAt;
+      updated.push(existing.name);
+      continue;
+    }
+
+    const profile = createProfileFromTemplate(template);
+    state.dashboard.profiles.push(profile);
+    created.push(profile.name);
+  }
+
+  if (created.length === 0 && updated.length === 0) {
+    return { created, updated, changed: false };
+  }
+
+  if (markDirty) {
+    state.dashboard.isDirty = true;
+  }
+  state.dashboard.revision = (state.dashboard.revision || 0) + 1;
+  persistDashboardState();
+  logEvent(
+    "dashboard",
+    `Installed preset profiles (created: ${created.join(", ") || "none"}, updated: ${updated.join(", ") || "none"})`,
+  );
+  return { created, updated, changed: true };
+}
+
 function touchDashboardRevision(reason, options = {}) {
   if (options.markDirty !== false) {
     state.dashboard.isDirty = true;
@@ -321,6 +501,7 @@ function dashboardSnapshot() {
 }
 
 loadPersistedDashboardState();
+installPresetProfiles({ markDirty: false });
 
 function shouldDedupAction(deviceId, actionType) {
   const key = `${deviceId}:${actionType}`;
@@ -480,6 +661,22 @@ function launchDetached(command, args) {
   });
 }
 
+function sanitizeCommandDetail(rawDetail) {
+  let detail = String(rawDetail || "").trim();
+  if (!detail) {
+    return detail;
+  }
+
+  if (detail.includes("#< CLIXML") || detail.includes("<Objs Version=")) {
+    detail = detail.replace("#< CLIXML", "").trim();
+    detail = detail.replaceAll("_x000D__x000A_", "\n");
+    detail = detail.replace(/<[^>]+>/g, " ");
+    detail = detail.replace(/\s+/g, " ").trim();
+  }
+
+  return detail;
+}
+
 function runCommand(command, args, { timeoutMs = 8_000 } = {}) {
   return new Promise((resolve) => {
     let settled = false;
@@ -521,7 +718,7 @@ function runCommand(command, args, { timeoutMs = 8_000 } = {}) {
     child.once("close", (exitCode) => {
       clearTimeout(timer);
       if (typeof exitCode === "number" && exitCode !== 0) {
-        const detail = stderr.trim() || `exit_code_${exitCode}`;
+        const detail = sanitizeCommandDetail(stderr) || `exit_code_${exitCode}`;
         settle({ ok: false, detail });
         return;
       }
@@ -531,7 +728,8 @@ function runCommand(command, args, { timeoutMs = 8_000 } = {}) {
 }
 
 function runPowerShellScript(script, options = {}) {
-  const encodedScript = Buffer.from(script, "utf16le").toString("base64");
+  const wrappedScript = `$ProgressPreference = 'SilentlyContinue'\n${script}`;
+  const encodedScript = Buffer.from(wrappedScript, "utf16le").toString("base64");
   const baseArgs = [
     "-NoLogo",
     "-NoProfile",
@@ -628,7 +826,77 @@ function toSendKeysExpression(rawShortcut) {
   return `${Array.from(modifiers).join("")}${keyPart}`;
 }
 
+function parseMacroSteps(rawValue) {
+  const input = String(rawValue || "").trim();
+  if (!input) {
+    return { ok: false, detail: "empty_macro" };
+  }
+
+  const rawSteps = input
+    .split(/\r?\n|;/)
+    .map((step) => step.trim())
+    .filter(Boolean);
+  if (rawSteps.length === 0) {
+    return { ok: false, detail: "empty_macro" };
+  }
+
+  const steps = [];
+  for (let i = 0; i < rawSteps.length; i += 1) {
+    const token = rawSteps[i];
+    const delayMatch = token.match(/^(wait|delay)\s*:\s*(\d{1,5})$/i);
+    if (delayMatch) {
+      const ms = Math.max(20, Math.min(5000, Number(delayMatch[2])));
+      steps.push({ type: "delay", ms });
+      continue;
+    }
+
+    const expression = toSendKeysExpression(token);
+    if (!expression) {
+      return { ok: false, detail: `invalid_macro_step_${i + 1}` };
+    }
+    steps.push({ type: "hotkey", expression });
+  }
+
+  return { ok: true, steps };
+}
+
 async function executeDesktopAction(actionType, actionValue) {
+  const escapePsLiteral = (value) => String(value || "").replaceAll("'", "''");
+
+  const sendSpotifyShortcut = (sendKeysExpression) => {
+    if (process.platform !== "win32") {
+      return { ok: false, detail: "unsupported_platform" };
+    }
+    const escapedKeys = String(sendKeysExpression || "").replaceAll('"', '""');
+    return runPowerShellScript(
+      `if (-not ("RemoteWindowFocus" -as [type])) {
+  Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RemoteWindowFocus {
+  [DllImport("user32.dll")]
+  public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+  [DllImport("user32.dll")]
+  public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+}
+"@
+}
+$spotify = Get-Process -Name "Spotify" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+if (-not $spotify) {
+  throw "spotify_not_running"
+}
+$hwnd = [IntPtr]$spotify.MainWindowHandle
+[RemoteWindowFocus]::ShowWindowAsync($hwnd, 9) | Out-Null
+[RemoteWindowFocus]::SetForegroundWindow($hwnd) | Out-Null
+Start-Sleep -Milliseconds 80
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.SendKeys]::SendWait("${escapedKeys}")`,
+      { timeoutMs: 8_000 },
+    );
+  };
+
   const sendVirtualKey = (virtualKeyCode, repeats = 1) => {
     if (process.platform !== "win32") {
       return { ok: false, detail: "unsupported_platform" };
@@ -683,7 +951,28 @@ for ($i = 0; $i -lt ${repeatCount}; $i++) {
     }
 
     if (process.platform === "win32") {
-      return launchDetached("cmd", ["/c", "start", "", ...parts]);
+      const [command, ...args] = parts;
+      const escapedCommand = escapePsLiteral(command);
+      const argList = args.map((arg) => `'${escapePsLiteral(arg)}'`).join(", ");
+      return runPowerShellScript(
+        `$filePath = '${escapedCommand}'
+$argList = @(${argList})
+try {
+  if ($argList.Count -gt 0) {
+    $proc = Start-Process -FilePath $filePath -ArgumentList $argList -PassThru -ErrorAction Stop
+  } else {
+    $proc = Start-Process -FilePath $filePath -PassThru -ErrorAction Stop
+  }
+  if (-not $proc) {
+    throw "start_process_failed"
+  }
+  exit 0
+} catch {
+  [Console]::Error.WriteLine($_.Exception.Message)
+  exit 1
+}`,
+        { timeoutMs: 8_000 },
+      );
     }
 
     const [command, ...args] = parts;
@@ -703,6 +992,39 @@ for ($i = 0; $i -lt ${repeatCount}; $i++) {
       `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("${escaped}")`,
       { timeoutMs: 6_000 },
     );
+  }
+
+  if (actionType === "run_macro") {
+    if (process.platform !== "win32") {
+      return { ok: false, detail: "unsupported_platform" };
+    }
+    const parsedMacro = parseMacroSteps(actionValue);
+    if (!parsedMacro.ok) {
+      return { ok: false, detail: parsedMacro.detail || "invalid_macro" };
+    }
+
+    const lines = [
+      "Add-Type -AssemblyName System.Windows.Forms",
+    ];
+    for (const step of parsedMacro.steps) {
+      if (step.type === "delay") {
+        lines.push(`Start-Sleep -Milliseconds ${step.ms}`);
+        continue;
+      }
+      const escaped = String(step.expression).replaceAll('"', '""');
+      lines.push(`[System.Windows.Forms.SendKeys]::SendWait("${escaped}")`);
+      lines.push("Start-Sleep -Milliseconds 60");
+    }
+
+    return runPowerShellScript(lines.join("\n"), { timeoutMs: 10_000 });
+  }
+
+  if (actionType === "spotify_volume_up") {
+    return sendSpotifyShortcut("^{UP}");
+  }
+
+  if (actionType === "spotify_volume_down") {
+    return sendSpotifyShortcut("^{DOWN}");
   }
 
   if (actionType === "media_play_pause") {
@@ -909,6 +1231,20 @@ const server = http.createServer(async (req, res) => {
       state.dashboard.activeProfileId = profile.id;
       touchDashboardRevision(`Profile created: ${profile.name}`);
       sendJson(res, 200, { ok: true, profile, dashboard: dashboardSnapshot() });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/profiles/install-presets") {
+      const body = await readBody(req);
+      const overwriteExisting = body.overwriteExisting !== false;
+      const result = installPresetProfiles({ markDirty: true, overwriteExisting });
+      sendJson(res, 200, {
+        ok: true,
+        createdProfiles: result.created,
+        updatedProfiles: result.updated,
+        changed: result.changed,
+        dashboard: dashboardSnapshot(),
+      });
       return;
     }
 
@@ -1128,6 +1464,9 @@ const server = http.createServer(async (req, res) => {
           "system_restart",
           "open_task_manager",
           "send_hotkey",
+          "run_macro",
+          "spotify_volume_up",
+          "spotify_volume_down",
         ].includes(actionType)
       ) {
         const invalid = logAction(deviceId, actionType, "failed", "unsupported_action");
@@ -1139,7 +1478,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if ((actionType === "open_url" || actionType === "open_app" || actionType === "send_hotkey") && !actionValue.trim()) {
+      if ((actionType === "open_url" || actionType === "open_app" || actionType === "send_hotkey" || actionType === "run_macro") && !actionValue.trim()) {
         const invalidTarget = logAction(deviceId, actionType, "failed", "missing_action_target");
         sendJson(res, 400, {
           ok: false,
@@ -1171,6 +1510,7 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 500, {
             ok: false,
             reason: "execution_failed",
+            executionDetail: execution.detail || "execution_failed",
             action: failed,
             resolved: {
               tileId: tile?.id || null,
@@ -1181,7 +1521,12 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
-        const detail = actionValue ? `executed:${actionValue}` : "executed";
+        const detail =
+          execution.detail && execution.detail !== "ok"
+            ? `executed:${execution.detail}`
+            : actionValue
+              ? `executed:${actionValue}`
+              : "executed";
         const success = logAction(deviceId, actionType, "success", detail);
         state.lastReason = `action:${actionType}`;
         logEvent("action", `Action executed: ${actionType}`);
@@ -1316,6 +1661,7 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
       <button id="profile-create" type="button" class="ghost" onclick="createProfile().catch((error)=>setMessage('Profile create failed: '+error.message))">Create</button>
       <button id="profile-rename" type="button" class="ghost" onclick="renameProfile().catch((error)=>setMessage('Profile rename failed: '+error.message))">Rename</button>
       <button id="profile-delete" type="button" class="danger" onclick="deleteProfile().catch((error)=>setMessage('Profile delete failed: '+error.message))">Delete</button>
+      <button id="profile-install-presets" type="button" class="primary" onclick="installPresetProfilesFromBuilder().catch((error)=>setMessage('Preset install failed: '+error.message))">Install Presets</button>
     </div>
     <div class="meta">Active: <b id="profile-active">-</b></div>
     <div class="meta" id="builder-message">Ready.</div>
@@ -1365,6 +1711,9 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
           <option value="open_url">Open URL</option>
           <option value="open_app">Open App</option>
           <option value="send_hotkey">Send Hotkey</option>
+          <option value="run_macro">Run Macro</option>
+          <option value="spotify_volume_up">Spotify Volume Up</option>
+          <option value="spotify_volume_down">Spotify Volume Down</option>
           <option value="media_play_pause">Media Play/Pause</option>
         </select>
       </div>
@@ -1427,12 +1776,15 @@ th{color:#84dbc0;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
                 <option value="open_url">Open URL</option>
                 <option value="open_app">Open App</option>
                 <option value="send_hotkey">Send Hotkey</option>
+                <option value="run_macro">Run Macro</option>
                 <option value="media_play_pause">Media Play/Pause</option>
                 <option value="media_next">Media Next</option>
                 <option value="media_previous">Media Previous</option>
                 <option value="volume_up">Volume Up</option>
                 <option value="volume_down">Volume Down</option>
                 <option value="volume_mute">Volume Mute</option>
+                <option value="spotify_volume_up">Spotify Volume Up</option>
+                <option value="spotify_volume_down">Spotify Volume Down</option>
                 <option value="system_lock">System Lock</option>
                 <option value="system_sleep">System Sleep</option>
                 <option value="system_shutdown">System Shutdown</option>
@@ -1581,6 +1933,7 @@ const SUPPORTED_ACTIONS = [
   "open_url",
   "open_app",
   "send_hotkey",
+  "run_macro",
   "media_play_pause",
   "media_next",
   "media_previous",
@@ -1592,6 +1945,8 @@ const SUPPORTED_ACTIONS = [
   "system_shutdown",
   "system_restart",
   "open_task_manager",
+  "spotify_volume_up",
+  "spotify_volume_down",
 ];
 
 if (!TILE_THEMES[activeCanvasThemeId]) {
@@ -1812,6 +2167,42 @@ async function deleteProfile() {
   setMessage("Deleted profile " + active.name);
 }
 
+async function installPresetProfilesFromBuilder() {
+  const resp = await fetch("/profiles/install-presets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ overwriteExisting: true }),
+  });
+  if (resp.status >= 400) {
+    const fail = await resp.json();
+    throw new Error(fail.reason || String(resp.status));
+  }
+  const payload = await resp.json();
+  dashboard = payload.dashboard;
+  lastSeenDashboardRevision = Number(dashboard.revision || 0);
+  selectedTileId = null;
+  setForm(null);
+  renderProfileControls();
+  renderTileList();
+  renderLayoutCanvas();
+  renderCanvasPayloadPanel();
+  await refreshPreview();
+  const created = Array.isArray(payload.createdProfiles) ? payload.createdProfiles : [];
+  const updated = Array.isArray(payload.updatedProfiles) ? payload.updatedProfiles : [];
+  const updates = [];
+  if (created.length) {
+    updates.push("created: " + created.join(", "));
+  }
+  if (updated.length) {
+    updates.push("updated: " + updated.join(", "));
+  }
+  setMessage(
+    updates.length
+      ? ("Installed preset profiles (" + updates.join(" | ") + ")")
+      : "Preset profiles already installed.",
+  );
+}
+
 function buildPlacements(tiles, gridColumns = 4) {
   const occupancy = [];
   const placements = [];
@@ -1967,6 +2358,12 @@ async function quickEditTile(tileId) {
     nextActionValue = target.trim();
   } else if (nextActionType === "send_hotkey") {
     const target = prompt("Hotkey combo", nextActionValue || "ctrl+shift+k");
+    if (target === null) {
+      return;
+    }
+    nextActionValue = target.trim();
+  } else if (nextActionType === "run_macro") {
+    const target = prompt("Macro steps", nextActionValue || "ctrl+s; wait:120; ctrl+shift+s");
     if (target === null) {
       return;
     }
@@ -2341,6 +2738,9 @@ function defaultTargetForAction(actionType) {
   if (actionType === "send_hotkey") {
     return "ctrl+shift+k";
   }
+  if (actionType === "run_macro") {
+    return "ctrl+s; wait:120; ctrl+shift+s";
+  }
   return "";
 }
 
@@ -2362,6 +2762,13 @@ function syncTargetUi() {
     targetInput.disabled = false;
     if (!targetInput.value.trim()) {
       targetInput.value = "ctrl+shift+k";
+    }
+  } else if (actionType === "run_macro") {
+    targetLabel.textContent = "Macro Steps";
+    targetInput.placeholder = "ctrl+s; wait:120; ctrl+shift+s";
+    targetInput.disabled = false;
+    if (!targetInput.value.trim()) {
+      targetInput.value = "ctrl+s; wait:120; ctrl+shift+s";
     }
   } else {
     targetLabel.textContent = "No target needed";
@@ -2390,6 +2797,13 @@ function syncCanvasPayloadTargetUi() {
     targetInput.disabled = false;
     if (!targetInput.value.trim()) {
       targetInput.value = "ctrl+shift+k";
+    }
+  } else if (actionType === "run_macro") {
+    targetLabel.textContent = "Macro Steps";
+    targetInput.placeholder = "ctrl+s; wait:120; ctrl+shift+s";
+    targetInput.disabled = false;
+    if (!targetInput.value.trim()) {
+      targetInput.value = "ctrl+s; wait:120; ctrl+shift+s";
     }
   } else {
     targetLabel.textContent = "No target needed";
@@ -2427,7 +2841,12 @@ function readCanvasPayloadForm() {
   const actionType = document.getElementById("canvas-payload-action").value;
   const rawTarget = document.getElementById("canvas-payload-target").value.trim();
   const actionValue =
-    (actionType === "open_url" || actionType === "open_app" || actionType === "send_hotkey")
+    (
+      actionType === "open_url" ||
+      actionType === "open_app" ||
+      actionType === "send_hotkey" ||
+      actionType === "run_macro"
+    )
       ? rawTarget
       : "";
   return {
